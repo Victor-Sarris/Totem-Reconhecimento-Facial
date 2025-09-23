@@ -4,8 +4,18 @@
 
 - deepface
 
+- tf-keras
+
+- cv2
+
+- os
+
+- pickle
+
 ```
 pip install mediapipe==0.10.21
 
 pip install deepface
+
+pip install tf-keras
 ```
