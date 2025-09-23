@@ -1,11 +1,10 @@
-# Arquivo: 01_capturar_rostos.py
 import cv2 as cv
 import os
 
-# Nome da pessoa que será cadastrada
+# nome da pessoa que será cadastrada
 nome_pessoa = "Victor" # Mude para o nome da pessoa que está na frente da câmera
 
-# Diretório para salvar as fotos
+# salvar as fotos
 data_path = "dataset"
 person_path = os.path.join(data_path, nome_pessoa)
 
@@ -21,20 +20,18 @@ while True:
     if not verificador:
         break
 
-    # Mostra a imagem da webcam
     cv.imshow("Captura de Rosto - Pressione 's' para salvar", frame)
     
-    # Espera por uma tecla
     key = cv.waitKey(5)
 
-    # Se a tecla 's' for pressionada, salva a imagem
+    # se a tecla 's' for pressionada, salva a imagem
     if key == ord('s'):
         file_name = os.path.join(person_path, f'{count}.jpg')
         cv.imwrite(file_name, frame)
         print(f"Foto salva em: {file_name}")
         count += 1
     
-    # Se a tecla ESC (27) for pressionada, sai do loop
+    # se a tecla 'esc' for pressionada, sai do loop
     elif key == 27:
         break
 

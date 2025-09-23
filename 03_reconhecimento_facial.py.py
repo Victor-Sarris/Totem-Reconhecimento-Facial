@@ -16,7 +16,7 @@ for nome in nomes_conhecidos:
     embeddings_medios_conhecidos.append(np.mean(embeddings_conhecidos[nome], axis=0))
 
 # --- 2. INICIALIZAR WEBCAM E MEDIAPIPE ---
-webcam = cv.VideoCapture(0)  # ajuste o índice da câmera
+webcam = cv.VideoCapture(0) 
 solucao_reconhecimento = mp.solutions.face_detection
 reconhecedor_rostos = solucao_reconhecimento.FaceDetection(min_detection_confidence=0.7)
 desenho = mp.solutions.drawing_utils
@@ -29,7 +29,7 @@ while True:
     # Obter altura e largura do frame para calcular as coordenadas
     altura, largura, _ = frame.shape
     
-    # Converter para RGB (essencial para o MediaPipe)
+    # Converter para RGB 
     frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
 
     # Processar reconhecimento de rostos
@@ -53,7 +53,7 @@ while True:
             # Recortar o rosto do frame (usando o frame BGR original do OpenCV)
             rosto_recortado = frame[y:y+h, x:x+w]
 
-            nome = "Desconhecido" # Define um nome padrão
+            nome = "Desconhecido" 
             
             # Apenas tente reconhecer se o recorte do rosto for válido
             if rosto_recortado.size != 0:

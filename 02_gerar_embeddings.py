@@ -1,4 +1,3 @@
-# Arquivo: 02_gerar_embeddings.py
 from deepface import DeepFace
 import os
 import pickle
@@ -24,7 +23,7 @@ for nome_pessoa in os.listdir(dataset_path):
         embeddings_conhecidos[nome_pessoa] = embeddings_pessoa
         print(f"Embeddings gerados para {nome_pessoa}")
 
-# Salva o dicionário de embeddings em um arquivo
+# salva o dicionário de embeddings em um arquivo
 with open("embeddings.pkl", "wb") as f:
     pickle.dump(embeddings_conhecidos, f)
 
