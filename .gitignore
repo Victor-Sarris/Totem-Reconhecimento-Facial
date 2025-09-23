@@ -1,0 +1,10 @@
+# ambiente virtual
+venv-deepface/
+
+# arquivos temporarios do python
+__pycache__/
+*.pyc
+
+# arquivos de dados gerados
+embeddings.pkl
+dataset/
