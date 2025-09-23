@@ -13,7 +13,7 @@
 - pickle
 
 ```
-pip install mediapipe==0.10.21
+pip install mediapipe (versão 0.10.21)
 
 pip install deepface
 
