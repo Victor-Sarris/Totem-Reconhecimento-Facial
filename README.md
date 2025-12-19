@@ -41,3 +41,6 @@ pip install deepface
 
 pip install tf-keras
 ```
+
+### Documentação usando o Putty para conectar via SSH ao Labrador
+
