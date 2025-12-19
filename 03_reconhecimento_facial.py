@@ -4,6 +4,9 @@ import pickle
 import numpy as np
 from deepface import DeepFace
 
+# variaveis
+rosto_reconhecido = None
+
 # --- 1. CARREGAR DADOS DE RECONHECIMENTO ---
 # Carregar os embeddings conhecidos do arquivo
 with open("embeddings.pkl", "rb") as f:
@@ -34,7 +37,9 @@ while True:
 
     # Processar reconhecimento de rostos
     lista_rostos = reconhecedor_rostos.process(frame_rgb)
-
+    
+    # 
+    
     if lista_rostos.detections:
         for rosto in lista_rostos.detections:
             
@@ -47,7 +52,6 @@ while True:
             w = int(bbox_data.width * largura)
             h = int(bbox_data.height * altura)
 
-            # Para evitar erros, garanta que as coordenadas não saiam da tela
             x, y, w, h = max(0, x), max(0, y), max(0, w), max(0, h)
 
             # Recortar o rosto do frame (usando o frame BGR original do OpenCV)
@@ -55,7 +59,6 @@ while True:
 
             nome = "Desconhecido" 
             
-            # Apenas tente reconhecer se o recorte do rosto for válido
             if rosto_recortado.size != 0:
                 try:
                     # Gerar o embedding para o rosto detectado na hora
@@ -73,8 +76,10 @@ while True:
                     # Se a menor distância for menor que um limiar, a pessoa foi reconhecida
                     if distancias[idx_melhor_match] < 0.4: # Limiar de decisão (pode ajustar)
                         nome = nomes_conhecidos[idx_melhor_match]
+                        rosto_reconhecido = nome
                 
                 except Exception as e:
+                    
                     # Se DeepFace não conseguir processar a imagem, continua como "Desconhecido"
                     pass
 
@@ -85,11 +90,15 @@ while True:
             
             # Escrever o nome da pessoa reconhecida
             cv.putText(frame, nome, (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-
+            
+            
+    if(rosto_reconhecido):
+        print(f'Reconhecimento facial feito: {nome}')
+        break
     cv.imshow("Reconhecimento Facial em Tempo Real", frame)
 
     if cv.waitKey(5) == 27:  # tecla ESC
         break
 
-webcam.release()
-cv.destroyAllWindows()
+# webcam.release()
+# cv.destroyAllWindows()

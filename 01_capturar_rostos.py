@@ -2,7 +2,7 @@ import cv2 as cv
 import os
 
 # nome da pessoa que será cadastrada
-nome_pessoa = "Victor" # Mude para o nome da pessoa que está na frente da câmera
+nome_pessoa = "Sarris" # Mude para o nome da pessoa que está na frente da câmera
 
 # salvar as fotos
 data_path = "dataset"
@@ -12,7 +12,7 @@ if not os.path.exists(person_path):
     print(f"Criando pasta: {person_path}")
     os.makedirs(person_path)
 
-webcam = cv.VideoCapture(0)
+webcam = cv.VideoCapture(1)
 count = 0
 
 while True:
