@@ -105,12 +105,8 @@ A Solução: Um ambiente de desenvolvimento (usando ferramentas como virtual env
 ```
 
 ### Primeiro de tudo, entre no diretório do projeto:
-
 ![alt text](img-documentation/Putty&Labrador/11.png)
-
 ### Siga o passo a passo a baixo:
-
 ![alt text](img-documentation/Putty&Labrador/12.png)
-
 ### Pronto, agora você tem um ambiente de desenvolvimento totalmente configurado e pronto para a instalação de bibliotas para o seu projeto!
 
