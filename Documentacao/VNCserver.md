@@ -1,0 +1,65 @@
+# Documentação RealVNC & Labrador
+
+Para que serve? Image que você não tenha um monitor externo extra para ver a tela do labrador... Você deve estar pensando, como posso realizar meus projetos assim? É fácil, vamos resolver isso e te mostrar como controlar remotamente o seu labrador via VNC Server. 
+
+### Demonstração:
+
+![alt text](../img-documentation/VNCserver/11.png)
+
+# Vamos começar baixando o VNCServer
+
+1. Baixe o VNCServer:
+
+![alt text](../img-documentation/VNCserver/2.png)
+
+---
+
+![alt text](../img-documentation/VNCserver/3.png)
+
+# Entre no Putty 
+
+1. Estabeleça conexão com o Labrador via SSH para a instalação de depedências
+
+![alt text](../img-documentation/VNCserver/4.png)
+
+---
+
+![alt text](../img-documentation/VNCserver/5.png)
+
+Comandos:
+```python
+sudo apt install xfce4 xfce4-goodies
+```
+```python
+sudo apt install tightvncserver
+```
+
+---
+![alt text](../img-documentation/VNCserver/6.png)
+
+Comando:
+
+```python
+vncserver
+```
+
+# Na sua máquina, volte para o programa do VNCServer
+
+![alt text](../img-documentation/VNCserver/7.png)
+
+--- 
+
+![alt text](../img-documentation/VNCserver/8.png)
+
+---
+
+![alt text](../img-documentation/VNCserver/9.png)
+
+---
+![alt text](../img-documentation/VNCserver/10.png)
+
+---
+
+# Pronto, você já pode controlar o Labrador remotamente:
+
+![alt text](../img-documentation/VNCserver/11.png)
