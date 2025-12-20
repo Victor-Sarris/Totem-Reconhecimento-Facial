@@ -1,7 +1,7 @@
 # 📚🧑‍💻 Documentação - Como utilizar o Putty para conectar via SSH ao Labrador.
 
 ### Primeiro passo, instalar o Putty:
-![alt text](img-documentation/Putty&Labrador/2.png)
+![alt text](../img-documentation/Putty&Labrador/2.png)
 ![alt text](img-documentation/Putty&Labrador/3.png)
 ### Depois de fazer o download e instalação do Putty, vamos inicar o Labrador e descobrir seu IP local para conecta-lo localmente via SSH com sua máquina:
 ![alt text](img-documentation/Putty&Labrador/4.png)
