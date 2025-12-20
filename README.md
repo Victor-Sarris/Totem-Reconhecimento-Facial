@@ -91,5 +91,5 @@ garante que cada projeto tenha suas próprias dependências, sem interferir nos 
 ![alt text](img-documentation/Putty&Labrador/11.png)
 ### Siga o passo a passo a baixo:
 ![alt text](img-documentation/Putty&Labrador/12.png)
-### Pronto, agora você tem um ambiente de desenvolvimento totalmente configurado e pronto para a instalação de bibliotas para o seu projeto!
 
+<p>Pronto, agora você tem um ambiente de desenvolvimento totalmente configurado e pronto para a instalação de bibliotas para o seu projeto!</p>
