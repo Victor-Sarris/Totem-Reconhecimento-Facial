@@ -41,3 +41,14 @@ pip install deepface
 
 pip install tf-keras
 ```
+
+### Instalação de Bibliotecas no Labrador
+
+1. Primeiro, é importante criar e entrar no ambiente de desenvolvimento no Labrador.
+2. Em seguida, instale as bibliotecas dentro do Ambiente de Desenvolvimento do Labrador.
+
+Instalar o OpenCV: 
+
+```python
+pip install opencv-python --extra-index-url https://www.piwheels.org/simple
+```
