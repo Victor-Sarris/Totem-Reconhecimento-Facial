@@ -21,6 +21,7 @@ const char* password = "evabarros2019";
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM      0
+#define FLASH_GPIO_NUM     4
 #define SIOD_GPIO_NUM     26
 #define SIOC_GPIO_NUM     27
 #define Y9_GPIO_NUM       35
@@ -115,6 +116,9 @@ void startCameraServer(){
 }
 
 void setup() {
+  pinMode(FLASH_GPIO_NUM, OUTPUT);
+  digitalWrite(FLASH_GPIO_NUM, LOW); // flash desligado
+
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
   Serial.begin(115200);
   Serial.setDebugOutput(false);
@@ -172,4 +176,6 @@ void setup() {
 
 void loop() {
   delay(10000);
+
+  digitalWrite(FLASH_GPIO_NUM, HIGH); // liga o flash
 }
