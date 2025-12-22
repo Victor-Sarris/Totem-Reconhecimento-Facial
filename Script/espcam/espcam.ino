@@ -5,7 +5,7 @@
 #include "Arduino.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
-#include "esp_http_server.h"
+#include "esp_http_server.h" // <--- O segredo está nessa biblioteca aqui
 
 // ==========================================
 // 1. Configurações de Rede
@@ -100,7 +100,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
 
 void startCameraServer(){
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = 80; // Porta 80
+  config.server_port = 80;
 
   httpd_uri_t stream_uri = {
     .uri       = "/stream",
@@ -142,7 +142,7 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
   
   if(psramFound()){
-    config.frame_size = FRAMESIZE_VGA; // 640x480
+    config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 10;
     config.fb_count = 2;
   } else {

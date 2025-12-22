@@ -1,72 +1,70 @@
 import cv2 as cv
+import numpy as np
+import requests
 import os
-import time
 
 # --- CONFIGURAÇÕES ---
-nome_pessoa = "Sarris"  # Nome da pasta
-url_esp32 = "http://192.168.18.159/stream" # Seu IP correto
+nome_pessoa = "Sarris"
+url_esp32 = "http://192.168.18.159/stream" 
 # ---------------------
 
 data_path = "dataset"
 person_path = os.path.join(data_path, nome_pessoa)
 
 if not os.path.exists(person_path):
-    print(f"Criando pasta: {person_path}")
     os.makedirs(person_path)
 
-print(f"Tentando conectar em: {url_esp32}")
-print("Aguarde... isso pode levar alguns segundos.")
+print(f"Conectando ao ESP32 em: {url_esp32}")
 
-webcam = cv.VideoCapture(url_esp32)
+try:
+    # Conecta no stream de dados bruto
+    stream = requests.get(url_esp32, stream=True, timeout=5)
+    
+    if stream.status_code == 200:
+        print("Conexão aceita! Iniciando captura...")
+    else:
+        print(f"Erro ao conectar: Código {stream.status_code}")
+        exit()
 
-# Aumenta o tamanho do buffer para evitar travamentos no WiFi
-webcam.set(cv.CAP_PROP_BUFFERSIZE, 2)
+    bytes_buffer = bytes()
+    count = 0
 
-if not webcam.isOpened():
-    print("ERRO CRÍTICO: Não foi possível conectar ao ESP32.")
-    print("Verifique se o IP está correto e se o ESP32 está ligado.")
-    exit()
-
-print("Conectado! Abrindo janela...")
-count = 0
-erros_consecutivos = 0
-
-while True:
-    verificador, frame = webcam.read()
-
-    # Se falhar ao ler o frame (comum em WiFi)
-    if not verificador:
-        erros_consecutivos += 1
-        print(f"Aviso: Frame perdido/corrompido ({erros_consecutivos})")
+    # Lê o stream em pedaços de 1024 bytes
+    for chunk in stream.iter_content(chunk_size=1024):
+        bytes_buffer += chunk
         
-        # Se falhar 100 vezes seguidas, aí sim desistimos
-        if erros_consecutivos > 100:
-            print("Muitos erros de conexão. Encerrando.")
-            break
+        # Procura os "marcadores" mágicos de início (0xffd8) e fim (0xffd9) de um JPEG
+        a = bytes_buffer.find(b'\xff\xd8')
+        b = bytes_buffer.find(b'\xff\xd9')
         
-        time.sleep(0.1) # Espera um pouquinho e tenta de novo
-        continue # Volta para o começo do loop
+        if a != -1 and b != -1:
+            # Recorta exatamente uma imagem JPEG do buffer
+            jpg = bytes_buffer[a:b+2]
+            bytes_buffer = bytes_buffer[b+2:] # Guarda o resto para a próxima volta
+            
+            # Decodifica a imagem da memória para o OpenCV
+            frame = cv.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv.IMREAD_COLOR)
+            
+            if frame is not None:
+                cv.imshow("Captura Manual - 's' para salvar", frame)
+                
+                key = cv.waitKey(1) & 0xFF
+                if key == ord("s"):
+                    file_name = os.path.join(person_path, f"{count}.jpg")
+                    cv.imwrite(file_name, frame)
+                    print(f"✅ Foto salva: {file_name}")
+                    count += 1
+                elif key == 27: # ESC
+                    break
+            else:
+                print("Aviso: Frame vazio recebido.")
 
-    # Se leu com sucesso, zera o contador de erros
-    erros_consecutivos = 0
+except requests.exceptions.ConnectionError:
+    print("ERRO FATAL: Não foi possível conectar ao ESP32.")
+    print("1. Verifique se o IP está correto.")
+    print("2. Verifique se o ESP32 está ligado e na mesma rede Wi-Fi.")
+except Exception as e:
+    print(f"Erro desconhecido: {e}")
 
-    # Redimensionar para ficar mais leve no VNC (Opcional, mas ajuda no Labrador)
-    # frame = cv.resize(frame, (640, 480))
-
-    cv.imshow("Captura - Pressione 's' para salvar", frame)
-
-    key = cv.waitKey(1) & 0xFF
-
-    if key == ord("s"):
-        file_name = os.path.join(person_path, f"{count}.jpg")
-        cv.imwrite(file_name, frame)
-        print(f"✅ Foto salva: {file_name}")
-        count += 1
-
-    elif key == 27: # ESC
-        print("Encerrando captura...")
-        break
-
-print(f"Total: {count} fotos salvas para {nome_pessoa}.")
-webcam.release()
+print("Encerrando...")
 cv.destroyAllWindows()
