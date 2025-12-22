@@ -12,7 +12,12 @@ if not os.path.exists(person_path):
     print(f"Criando pasta: {person_path}")
     os.makedirs(person_path)
 
-webcam = cv.VideoCapture(1)
+# webcam = cv.VideoCapture(1) acessa a câmera da sua máquina
+
+url_esp32 = "http://192.168.18.159/stream"
+wevam = cv.VideoCapture(url_esp32)
+
+
 count = 0
 
 while True:

@@ -32,7 +32,7 @@ No PowerShell:
 
 ```
 
-### Instalação de Bibliotecas
+### Instalação de Bibliotecas (Se for fazer o teste no seu PC)
 
 ``` python
 pip install mediapipe (versão 0.10.21)
