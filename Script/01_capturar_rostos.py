@@ -15,7 +15,7 @@ if not os.path.exists(person_path):
 # webcam = cv.VideoCapture(1) acessa a câmera da sua máquina
 
 url_esp32 = "http://192.168.18.159/stream"
-wevam = cv.VideoCapture(url_esp32)
+webcam = cv.VideoCapture(url_esp32)
 
 
 count = 0
