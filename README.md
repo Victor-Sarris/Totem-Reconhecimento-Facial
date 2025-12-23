@@ -32,7 +32,7 @@ No PowerShell:
 
 ```
 
-### Instalação de Bibliotecas
+### Instalação de Bibliotecas (Se for fazer o teste no seu PC)
 
 ``` python
 pip install mediapipe (versão 0.10.21)
@@ -54,11 +54,22 @@ Nota: Acesse a documentação para fazer o processo corretamente:
 
 Antes de tudo, é necessário instalar as bibliotecas matemáticas e gráficas que o OpenCV usa "por baixo do capô". Sem elas, o Python não consegue carregar a biblioteca.
 
+Antes de realizar a instalação de bibliotecas no SO do labrador, certifique de checar as bibliotecas já existentes:
+
 ```python
 sudo apt update
 ```
+
+Agora você pode instalar normalmente as bibliotecas que precisa:
+
 ```python
 sudo apt install -y libopenblas-dev libatlas-base-dev libgtk-3-0 libavcodec-extra
+```
+```python
+sudo apt install ffmpeg -y
+```
+```python
+pip install requests
 ```
 
 2. Preparação do Ambiente Python
@@ -103,3 +114,5 @@ Resumo dos Erros Comuns (Troubleshooting)
 - Erro libGL.so, libopenblas.so ou libcblas.so: Significa que faltou rodar o passo 1 (dependências do sistema via apt).
 - Demora de horas na instalação: Significa que você esqueceu as flags --extra-index-url ... ou --prefer-binary, e o Labrador está tentando compilar o código fonte.
 - Erro numpy.core.multiarray failed to import: Significa que você instalou o Numpy 2.0. Remova-o e instale com "numpy<2".
+
+5. 

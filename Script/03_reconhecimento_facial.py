@@ -54,7 +54,7 @@ while True:
 
             x, y, w, h = max(0, x), max(0, y), max(0, w), max(0, h)
 
-            # Recortar o rosto do frame (usando o frame BGR original do OpenCV)
+            # Recortar o rosto do frame 
             rosto_recortado = frame[y:y+h, x:x+w]
 
             nome = "Desconhecido" 
@@ -66,7 +66,7 @@ while True:
                     
                     distancias = []
                     for emb_conhecido in embeddings_medios_conhecidos:
-                        # Calculando a distância do cosseno
+                        # Calculando a distância do embedding
                         dist = 1 - np.dot(embedding_atual, emb_conhecido) / (np.linalg.norm(embedding_atual) * np.linalg.norm(emb_conhecido))
                         distancias.append(dist)
                     
@@ -74,7 +74,7 @@ while True:
                     idx_melhor_match = np.argmin(distancias)
                     
                     # Se a menor distância for menor que um limiar, a pessoa foi reconhecida
-                    if distancias[idx_melhor_match] < 0.4: # Limiar de decisão (pode ajustar)
+                    if distancias[idx_melhor_match] < 0.4: # Limiar de decisão (posso ajustar futuramente)
                         nome = nomes_conhecidos[idx_melhor_match]
                         rosto_reconhecido = nome
                 

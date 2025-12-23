@@ -1,40 +1,69 @@
 import cv2 as cv
+import numpy as np
+import requests
 import os
 
-# nome da pessoa que será cadastrada
-nome_pessoa = "Sarris" # Mude para o nome da pessoa que está na frente da câmera
+# --- CONFIGURAÇÕES ---
+nome_pessoa = "Sarris"
+url_esp32 = "http://192.168.18.159/stream" 
+# ---------------------
 
-# salvar as fotos
 data_path = "dataset"
 person_path = os.path.join(data_path, nome_pessoa)
 
 if not os.path.exists(person_path):
-    print(f"Criando pasta: {person_path}")
     os.makedirs(person_path)
 
-webcam = cv.VideoCapture(1)
-count = 0
+print(f"Conectando ao ESP32 em: {url_esp32}")
 
-while True:
-    verificador, frame = webcam.read()
-    if not verificador:
-        break
+try:
+    stream = requests.get(url_esp32, stream=True, timeout=5)
+    bytes_buffer = bytes()
+    count = 0
 
-    cv.imshow("Captura de Rosto - Pressione 's' para salvar", frame)
-    
-    key = cv.waitKey(5)
+    print("Conexão aceita! Pressione 's' para salvar e 'ESC' para sair.")
 
-    # se a tecla 's' for pressionada, salva a imagem
-    if key == ord('s'):
-        file_name = os.path.join(person_path, f'{count}.jpg')
-        cv.imwrite(file_name, frame)
-        print(f"Foto salva em: {file_name}")
-        count += 1
-    
-    # se a tecla 'esc' for pressionada, sai do loop
-    elif key == 27:
-        break
+    for chunk in stream.iter_content(chunk_size=4096):
+        bytes_buffer += chunk
+        
+        # Loop para processar tudo que estiver no buffer
+        while True:
+            # Procura os marcadores de Inicio (ffd8) e Fim (ffd9) do JPEG
+            a = bytes_buffer.find(b'\xff\xd8')
+            b = bytes_buffer.find(b'\xff\xd9')
+            
+            # Se não tiver inicio ou fim, espera mais dados
+            if a == -1 or b == -1:
+                break
+                
+            # Se o buffer tiver cheio, faz a limpeza
+            if b < a:
+                bytes_buffer = bytes_buffer[b+2:]
+                continue # Tenta de novo com o buffer limpo
 
-print(f"{count} fotos salvas para {nome_pessoa}.")
-webcam.release()
-cv.destroyAllWindows()
+            jpg = bytes_buffer[a:b+2]
+            bytes_buffer = bytes_buffer[b+2:] # Remove a imagem já processada
+            
+            # Tenta decodificar
+            try:
+                frame = cv.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv.IMREAD_COLOR)
+                
+                if frame is not None:
+                    # Redimensiona para ver melhor se vier gigante
+                    # frame = cv.resize(frame, (640, 480))
+                    
+                    cv.imshow("Captura Manual", frame)
+                    
+                    key = cv.waitKey(1) & 0xFF
+                    if key == ord("s"):
+                        file_name = os.path.join(person_path, f"{count}.jpg")
+                        cv.imwrite(file_name, frame)
+                        print(f"✅ Foto salva: {file_name}")
+                        count += 1
+                    elif key == 27: # ESC
+                        exit()
+            except Exception as e:
+                pass # Se der erro num frame específico, apenas ignora e vai pro próximo
+
+except Exception as e:
+    print(f"Erro: {e}")
