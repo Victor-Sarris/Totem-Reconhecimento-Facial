@@ -22,7 +22,6 @@ except Exception as e:
 
 print("[INFO] Iniciando reconhecimento. Pressione 'q' para sair.")
 
-# Chunk maior para garantir fluxo
 for chunk in stream.iter_content(chunk_size=4096):
     bytes_buffer += chunk
     
@@ -76,7 +75,7 @@ for chunk in stream.iter_content(chunk_size=4096):
                 if name != "Desconhecido":
                     print(f"Reconhecido: {name}")
 
-            # 3. Desenha os resultados no frame original (grande)
+            # 3. Desenha os resultados no frame original 
             for (top, right, bottom, left), name in zip(face_locations, face_names):
                 # Escala de volta as coordenadas (vezes 4)
                 top *= 4

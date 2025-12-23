@@ -33,10 +33,10 @@ for nome_pessoa in os.listdir(dataset_path):
             
         rgb = cv2.cvtColor(imagem, cv2.COLOR_BGR2RGB)
 
-        # Detecta rostos na imagem (usando HOG, que é mais leve que CNN)
+        # Detecta rostos na imagem 
         boxes = face_recognition.face_locations(rgb, model="hog")
 
-        # Gera os embeddings (128 números que descrevem o rosto)
+        # Gera os embeddings 
         encodings = face_recognition.face_encodings(rgb, boxes)
 
         # Guarda o encoding e o nome
