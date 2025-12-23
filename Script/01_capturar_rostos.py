@@ -36,7 +36,7 @@ try:
             if a == -1 or b == -1:
                 break
                 
-            # Se o buffer tiver cheio, faz a limpeza
+            # Se o buffer tiver cheio, faz a limpeza do mesmo
             if b < a:
                 bytes_buffer = bytes_buffer[b+2:]
                 continue # Tenta de novo com o buffer limpo
