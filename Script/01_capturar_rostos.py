@@ -23,7 +23,6 @@ try:
 
     print("Conexão aceita! Pressione 's' para salvar e 'ESC' para sair.")
 
-    # Aumentei o chunk para garantir que pegamos pacotes inteiros mais rápido
     for chunk in stream.iter_content(chunk_size=4096):
         bytes_buffer += chunk
         
@@ -37,7 +36,7 @@ try:
             if a == -1 or b == -1:
                 break
                 
-            # CORREÇÃO CRÍTICA: Se o fim veio ANTES do inicio, é lixo antigo. Joga fora.
+            # Se o buffer tiver cheio, faz a limpeza
             if b < a:
                 bytes_buffer = bytes_buffer[b+2:]
                 continue # Tenta de novo com o buffer limpo
