@@ -48,7 +48,7 @@ pip install tf-keras
 2. Em seguida, instale as bibliotecas dentro do Ambiente de Desenvolvimento do Labrador.
 
 Nota: Acesse a documentação para fazer o processo corretamente:
-[Ambiente de Desenvolvimento](Documentacao/3.Venv.md)
+[Ambiente de Desenvolvimento](Documentacao/)
 
 1. Dependências do Sistema (Terminal Geral)
 
@@ -91,6 +91,7 @@ pip uninstall opencv-python numpy -y
 ```
 
 3. Instalação Otimizada (O "Pulo do Gato")
+
 O segredo para não demorar horas compilando é usar o repositório PiWheels e a flag --prefer-binary.
 
 Instalar o OpenCV (Versão Binary): Isso baixa o arquivo .whl já pronto para ARMv7.
