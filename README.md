@@ -48,7 +48,7 @@ pip install tf-keras
 2. Em seguida, instale as bibliotecas dentro do Ambiente de Desenvolvimento do Labrador.
 
 Nota: Acesse a documentação para fazer o processo corretamente:
-[Ambiente de Desenvolvimento](Documentacao/)
+[Documentação](Documentacao)
 
 1. Dependências do Sistema (Terminal Geral)
 
