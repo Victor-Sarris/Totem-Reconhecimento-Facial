@@ -48,7 +48,7 @@ pip install tf-keras
 2. Em seguida, instale as bibliotecas dentro do Ambiente de Desenvolvimento do Labrador.
 
 Nota: Acesse a documentação para fazer o processo corretamente:
-[Ambiente de Desenvolvimento](Documentacao/3.Venv.md)
+[Documentação](Documentacao)
 
 1. Dependências do Sistema (Terminal Geral)
 
@@ -72,6 +72,10 @@ sudo apt install ffmpeg -y
 pip install requests
 ```
 
+```python
+sudo apt install cmake -y
+```
+
 2. Preparação do Ambiente Python
 
 Certifique-se de estar com seu ambiente virtual ativado (se estiver usando um):
@@ -87,6 +91,7 @@ pip uninstall opencv-python numpy -y
 ```
 
 3. Instalação Otimizada (O "Pulo do Gato")
+
 O segredo para não demorar horas compilando é usar o repositório PiWheels e a flag --prefer-binary.
 
 Instalar o OpenCV (Versão Binary): Isso baixa o arquivo .whl já pronto para ARMv7.
@@ -115,4 +120,28 @@ Resumo dos Erros Comuns (Troubleshooting)
 - Demora de horas na instalação: Significa que você esqueceu as flags --extra-index-url ... ou --prefer-binary, e o Labrador está tentando compilar o código fonte.
 - Erro numpy.core.multiarray failed to import: Significa que você instalou o Numpy 2.0. Remova-o e instale com "numpy<2".
 
-5. 
+Instalar o Dlib (Versão Binária - Rápida)
+```python
+pip install dlib --extra-index-url https://www.piwheels.org/simple --prefer-binary
+```
+
+Instalar a biblioteca de reconhecimento
+```python
+pip install face_recognition --extra-index-url https://www.piwheels.org/simple --prefer-binary
+```
+
+Caso dê errado o comando anteiror, adicione no final:
+```python
+--break-system-packages
+```
+
+Depois que instalar o dlib, não esqueça de instalar a outra biblioteca que precisa dele:
+
+```python
+python3 -m pip install face_recognition --extra-index-url https://www.piwheels.org/simple --prefer-binary
+```
+
+Caso dê errado o comando anteiror, adicione no final:
+```python
+--break-system-packages
+```
