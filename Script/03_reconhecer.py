@@ -7,7 +7,6 @@ import requests
 # --- CONFIGURAÇÕES ---
 url_esp32 = "http://192.168.18.159/stream" # IP da espcam
 encoding_file = "encodings.pickle"
-# ---------------------
 
 print("[INFO] Carregando encodings...")
 data = pickle.loads(open(encoding_file, "rb").read())
