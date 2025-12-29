@@ -5,7 +5,7 @@ import numpy as np
 import requests
 
 # --- CONFIGURAÇÕES ---
-url_esp32 = "http://192.168.18.159/stream" # Seu IP
+url_esp32 = "http://192.168.18.159/stream" # IP da espcam
 encoding_file = "encodings.pickle"
 # ---------------------
 
@@ -20,12 +20,16 @@ except Exception as e:
     print(f"[ERRO] Falha ao conectar: {e}")
     exit()
 
-print("[INFO] Iniciando reconhecimento. Pressione 'q' para sair.")
+print("[INFO] Sistema Iniciado. Aguardando rosto...")
+
+# Variáveis de Controle de Estado
+acesso_liberado = False
+nome_liberado = ""
+posicao_rosto = [] 
 
 for chunk in stream.iter_content(chunk_size=4096):
     bytes_buffer += chunk
     
-    # Loop para decodificar frames do buffer
     while True:
         a = bytes_buffer.find(b'\xff\xd8')
         b = bytes_buffer.find(b'\xff\xd9')
@@ -41,58 +45,61 @@ for chunk in stream.iter_content(chunk_size=4096):
         bytes_buffer = bytes_buffer[b+2:]
         
         try:
-            # Decodifica a imagem
             frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None: continue
 
-            # --- OTIMIZAÇÃO PARA LABRADOR ---
-            # Reduzimos o frame para 1/4 do tamanho para o reconhecimento ficar rápido
-            small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-            rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+            # Se ainda NÃO liberou o acesso, continua procurando
+            if not acesso_liberado:
+                
+                # Reduz para processar rápido (tamanho da imagem)
+                small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+                rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
-            # 1. Detecta rostos no frame pequeno
-            face_locations = face_recognition.face_locations(rgb_small_frame)
+                face_locations = face_recognition.face_locations(rgb_small_frame)
+                face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+
+                for face_encoding, location in zip(face_encodings, face_locations):
+                    matches = face_recognition.compare_faces(data["encodings"], face_encoding, tolerance=0.5)
+                    name = "Desconhecido"
+
+                    face_distances = face_recognition.face_distance(data["encodings"], face_encoding)
+                    best_match_index = np.argmin(face_distances)
+                    
+                    if matches[best_match_index]:
+                        name = data["names"][best_match_index]
+
+                    # se reconheceu:
+                    if name != "Desconhecido":
+                        acesso_liberado = True
+                        nome_liberado = name
+                        posicao_rosto = location 
+                        
+                        # Imprime só uma vez no terminal
+                        print(f"\n{'='*30}")
+                        print(f"✅ ACESSO LIBERADO PARA: {name.upper()}")
+                        print(f"{'='*30}\n")
+                        print("Pressione 'q' ou 'ESC' para encerrar o sistema.")
+
+            # --- DESENHO NA TELA (INTERFACE) ---
             
-            # 2. Codifica os rostos detectados
-            face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-
-            face_names = []
-            for face_encoding in face_encodings:
-                # Compara com os rostos conhecidos
-                matches = face_recognition.compare_faces(data["encodings"], face_encoding, tolerance=0.5)
-                name = "Desconhecido"
-
-                # Se houver match, verifica qual é o mais parecido (menor distância)
-                face_distances = face_recognition.face_distance(data["encodings"], face_encoding)
-                best_match_index = np.argmin(face_distances)
+            # Se o acesso já foi liberado...
+            if acesso_liberado:
+                # barra verde no topo da janela
+                cv2.rectangle(frame, (0, 0), (frame.shape[1], 50), (0, 255, 0), -1)
+                texto = f"ACESSO LIBERADO: {nome_liberado}"
+                cv2.putText(frame, texto, (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
                 
-                if matches[best_match_index]:
-                    name = data["names"][best_match_index]
 
-                face_names.append(name)
-                
-                # Feedback no terminal se encontrar alguém
-                if name != "Desconhecido":
-                    print(f"Reconhecido: {name}")
+            # Se ainda não liberou, desenha "Aguardando..."
+            else:
+                cv2.rectangle(frame, (0, 0), (frame.shape[1], 30), (0, 0, 255), -1)
+                cv2.putText(frame, "BLOQUEADO - APROXIME O ROSTO", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-            # 3. Desenha os resultados no frame original 
-            for (top, right, bottom, left), name in zip(face_locations, face_names):
-                # Escala de volta as coordenadas (vezes 4)
-                top *= 4
-                right *= 4
-                bottom *= 4
-                left *= 4
-
-                # Desenha o quadrado
-                cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-                
-                # Desenha o nome
-                cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
-                cv2.putText(frame, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 255, 255), 1)
-
-            cv2.imshow("Reconhecimento Facial (Dlib)", frame)
+            cv2.imshow("Sistema de Controle de Acesso", frame)
             
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q') or key == 27: # 'q' ou ESC para sair
+                print("[INFO] Sistema encerrado pelo usuário.")
                 exit()
                 
         except Exception as e:
