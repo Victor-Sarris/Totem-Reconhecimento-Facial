@@ -1,14 +1,15 @@
-# ambiente virtual
+# ambiente virtual.
 venv-deepface/
 venv
 venv/
 .\venv
 .venv
 
-# arquivos temporarios do python
+# arquivos temporarios do python.
 __pycache__/
 *.pyc
 
-# arquivos de dados gerados
+# arquivos de dados gerados.
 embeddings.pkl
+encodings.pickle
 dataset/
