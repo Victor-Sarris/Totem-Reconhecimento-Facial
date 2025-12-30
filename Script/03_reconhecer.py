@@ -21,7 +21,7 @@ except Exception as e:
 
 print("[INFO] Sistema Iniciado. Aguardando rosto...")
 
-# Variáveis de Controle de Estado
+# variáveis de cotrole de estado
 acesso_liberado = False
 nome_liberado = ""
 posicao_rosto = [] 
@@ -47,10 +47,10 @@ for chunk in stream.iter_content(chunk_size=4096):
             frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None: continue
 
-            # Se ainda NÃO liberou o acesso, continua procurando
+            # se ainda NÃO liberou o acesso, continua procurando
             if not acesso_liberado:
                 
-                # Reduz para processar rápido (tamanho da imagem)
+                # reduz o tamanho da imagem para processar rápido
                 small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
                 rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
@@ -73,7 +73,7 @@ for chunk in stream.iter_content(chunk_size=4096):
                         nome_liberado = name
                         posicao_rosto = location 
                         
-                        # Imprime só uma vez no terminal
+                        # imprime só uma vez no terminal
                         print(f"\n{'='*30}")
                         print(f"✅ ACESSO LIBERADO PARA: {name.upper()}")
                         print(f"{'='*30}\n")
@@ -81,7 +81,7 @@ for chunk in stream.iter_content(chunk_size=4096):
 
             # --- DESENHO NA TELA (INTERFACE) ---
             
-            # Se o acesso já foi liberado...
+            # se o acesso já foi liberado...
             if acesso_liberado:
                 # barra verde no topo da janela
                 cv2.rectangle(frame, (0, 0), (frame.shape[1], 50), (0, 255, 0), -1)
@@ -89,7 +89,7 @@ for chunk in stream.iter_content(chunk_size=4096):
                 cv2.putText(frame, texto, (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
                 
 
-            # Se ainda não liberou, desenha "Aguardando..."
+            # se ainda não liberou, desenha "Aguardando..."
             else:
                 cv2.rectangle(frame, (0, 0), (frame.shape[1], 30), (0, 0, 255), -1)
                 cv2.putText(frame, "BLOQUEADO - APROXIME O ROSTO", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)

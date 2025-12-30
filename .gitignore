@@ -1,6 +1,7 @@
 # ambiente virtual
 venv-deepface/
 venv
+venv/
 .\venv
 .venv
 

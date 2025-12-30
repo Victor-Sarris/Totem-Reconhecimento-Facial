@@ -2,13 +2,20 @@ Olá, seja bem vindo. Esse é um repositório destinado ao projeto de tcc que co
 
 ### É recomendado criar e ativar um ambiente de desenvolvimento:
 
-No CMD:
+Criar o Ambiente:
+
+```python
+python -m venv venv
+```
+
+
+Ativar o Ambiente no CMD:
 
 ```
 venv\Scripts\activate
 ```
 
-No PowerShell:
+Ativar o Ambiente no PowerShell:
 
 ```
 .\venv\Scripts\Activate.ps1
@@ -35,11 +42,15 @@ No PowerShell:
 ### Instalação de Bibliotecas (Se for fazer o teste no seu PC)
 
 ``` python
-pip install mediapipe (versão 0.10.21)
+pip install opencv-python --extra-index-url https://www.piwheels.org/simple --prefer-binary
 
-pip install deepface
+pip install "numpy<2" --extra-index-url https://www.piwheels.org/simple --prefer-binary
 
-pip install tf-keras
+pip install dlib --extra-index-url https://www.piwheels.org/simple --prefer-binary
+
+pip install face_recognition
+
+pip install requests
 ```
 
 ### Instalação de Bibliotecas no Labrador

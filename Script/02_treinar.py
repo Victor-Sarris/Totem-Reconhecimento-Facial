@@ -13,7 +13,7 @@ known_names = []
 
 print("[INFO] Iniciando processamento das imagens...")
 
-# Varre todas as pastas dentro de 'dataset'
+# varre todas as pastas dentro de 'dataset'
 for nome_pessoa in os.listdir(dataset_path):
     pasta_pessoa = os.path.join(dataset_path, nome_pessoa)
     
@@ -22,24 +22,24 @@ for nome_pessoa in os.listdir(dataset_path):
 
     print(f"[INFO] Processando: {nome_pessoa}")
 
-    # Varre cada foto da pessoa
+    # varre cada foto da pessoa
     for arquivo_imagem in os.listdir(pasta_pessoa):
         caminho_imagem = os.path.join(pasta_pessoa, arquivo_imagem)
         
-        # Carrega a imagem e converte de BGR (OpenCV) para RGB (Dlib)
+        # carrega a imagem e converte de BGR (OpenCV) para RGB (Dlib)
         imagem = cv2.imread(caminho_imagem)
         if imagem is None:
             continue
             
         rgb = cv2.cvtColor(imagem, cv2.COLOR_BGR2RGB)
 
-        # Detecta rostos na imagem 
+        # detecta rostos na imagem 
         boxes = face_recognition.face_locations(rgb, model="hog")
 
-        # Gera os embeddings 
+        # gera os embeddings 
         encodings = face_recognition.face_encodings(rgb, boxes)
 
-        # Guarda o encoding e o nome
+        # guarda o encoding e o nome
         for encoding in encodings:
             known_encodings.append(encoding)
             known_names.append(nome_pessoa)

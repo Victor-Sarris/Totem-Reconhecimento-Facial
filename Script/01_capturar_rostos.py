@@ -26,30 +26,28 @@ try:
     for chunk in stream.iter_content(chunk_size=4096):
         bytes_buffer += chunk
         
-        # Loop para processar tudo que estiver no buffer
+        # loop para processar tudo que estiver no buffer
         while True:
-            # Procura os marcadores de Inicio (ffd8) e Fim (ffd9) do JPEG
             a = bytes_buffer.find(b'\xff\xd8')
             b = bytes_buffer.find(b'\xff\xd9')
             
-            # Se não tiver inicio ou fim, espera mais dados
             if a == -1 or b == -1:
                 break
                 
-            # Se o buffer tiver cheio, faz a limpeza do mesmo
+            # se o buffer tiver cheio, faz a limpeza do mesmo
             if b < a:
                 bytes_buffer = bytes_buffer[b+2:]
-                continue # Tenta de novo com o buffer limpo
+                continue # limpa o buffer e tenta novamente
 
             jpg = bytes_buffer[a:b+2]
-            bytes_buffer = bytes_buffer[b+2:] # Remove a imagem já processada
+            bytes_buffer = bytes_buffer[b+2:] # remove a imagem já processada
             
-            # Tenta decodificar
+            # tenta decodificar
             try:
                 frame = cv.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv.IMREAD_COLOR)
                 
                 if frame is not None:
-                    # Redimensiona para ver melhor se vier gigante
+                    # redimensiona a imagem para menor processamento
                     # frame = cv.resize(frame, (640, 480))
                     
                     cv.imshow("Captura Manual", frame)
@@ -63,7 +61,7 @@ try:
                     elif key == 27: # ESC
                         exit()
             except Exception as e:
-                pass # Se der erro num frame específico, apenas ignora e vai pro próximo
+                pass # se der erro num frame específico, apenas ignora e vai pro próximo
 
 except Exception as e:
     print(f"Erro: {e}")
