@@ -5,7 +5,7 @@
 #include "Arduino.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
-#include "esp_http_server.h" // <--- O segredo está nessa biblioteca aqui
+#include "esp_http_server.h" 
 
 // ==========================================
 // 1. Configurações de Rede
