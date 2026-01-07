@@ -12,4 +12,4 @@ __pycache__/
 # arquivos de dados gerados.
 embeddings.pkl
 encodings.pickle
-dataset/
+# dataset/
