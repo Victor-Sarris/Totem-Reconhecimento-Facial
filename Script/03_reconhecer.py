@@ -2,104 +2,202 @@ import cv2
 import face_recognition
 import pickle
 import numpy as np
+import threading
+import time
 import requests
+from flask import Flask, Response, jsonify, request
 
 # --- CONFIGURAÇÕES ---
-url_esp32 = "http://192.168.18.159/stream" # IP da espcam
-encoding_file = "encodings.pickle"
+ARQUIVO_DADOS = "encodings.pickle"
+URL_CAMERA = "http://192.168.18.159/stream" # IP da sua ESP32
+DELAY_RECONHECIMENTO = 10  # Tempo (segundos) que o sistema pausa após reconhecer alguém
 
-print("[INFO] Carregando encodings...")
-data = pickle.loads(open(encoding_file, "rb").read())
+app = Flask(__name__)
 
-print(f"[INFO] Conectando ao ESP32: {url_esp32}")
-try:
-    stream = requests.get(url_esp32, stream=True, timeout=5)
-    bytes_buffer = bytes()
-except Exception as e:
-    print(f"[ERRO] Falha ao conectar: {e}")
-    exit()
+# --- VARIÁVEIS GLOBAIS ---
+frame_atual = None
+lista_encodings = []
+lista_nomes = []
+lock = threading.Lock() # Cadeado para evitar que o cadastro atrapalhe o reconhecimento
 
-print("[INFO] Sistema Iniciado. Aguardando rosto...")
+# --- CARREGAMENTO DE DADOS ---
+def carregar_dados():
+    global lista_encodings, lista_nomes
+    try:
+        with open(ARQUIVO_DADOS, "rb") as f:
+            data = pickle.load(f)
+        lista_encodings = data["encodings"]
+        lista_nomes = data["names"]
+        print(f"[SISTEMA] Banco carregado: {len(lista_nomes)} usuarios.")
+    except FileNotFoundError:
+        print("[AVISO] Iniciando banco de dados vazio.")
+        lista_encodings = []
+        lista_nomes = []
 
-# variáveis de cotrole de estado
-acesso_liberado = False
-nome_liberado = ""
-posicao_rosto = [] 
+def salvar_dados_pickle():
+    """Salva a lista atualizada no disco"""
+    global lista_encodings, lista_nomes
+    # Usa o cadeado para garantir que ninguém mexa na lista enquanto salvamos
+    with lock:
+        data = {"encodings": lista_encodings, "names": lista_nomes}
+        with open(ARQUIVO_DADOS, "wb") as f:
+            f.write(pickle.dumps(data))
+    print("[SISTEMA] Banco de dados atualizado e salvo.")
 
-for chunk in stream.iter_content(chunk_size=4096):
-    bytes_buffer += chunk
+# --- THREAD DE VÍDEO E RECONHECIMENTO (A JANELA DO TOTEM) ---
+def loop_reconhecimento():
+    global frame_atual, lista_encodings, lista_nomes
+    
+    ultimo_reconhecimento = 0
+    nome_ultimo_detectado = ""
+    
+    print(f"[VIDEO] Iniciando janela e conectando: {URL_CAMERA}")
+    
+    # CRIA A JANELA NO MONITOR HDMI
+    cv2.namedWindow("Totem Facial", cv2.WINDOW_NORMAL)
+    # cv2.setWindowProperty("Totem Facial", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN) # Descomente se quiser tela cheia
     
     while True:
-        a = bytes_buffer.find(b'\xff\xd8')
-        b = bytes_buffer.find(b'\xff\xd9')
-        
-        if a == -1 or b == -1:
-            break
-            
-        if b < a:
-            bytes_buffer = bytes_buffer[b+2:]
-            continue
-
-        jpg = bytes_buffer[a:b+2]
-        bytes_buffer = bytes_buffer[b+2:]
-        
         try:
-            frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-            if frame is None: continue
-
-            # se ainda NÃO liberou o acesso, continua procurando
-            if not acesso_liberado:
-                
-                # reduz o tamanho da imagem para processar rápido
-                small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-                rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
-
-                face_locations = face_recognition.face_locations(rgb_small_frame)
-                face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-
-                for face_encoding, location in zip(face_encodings, face_locations):
-                    matches = face_recognition.compare_faces(data["encodings"], face_encoding, tolerance=0.5)
-                    name = "Desconhecido"
-
-                    face_distances = face_recognition.face_distance(data["encodings"], face_encoding)
-                    best_match_index = np.argmin(face_distances)
+            stream = requests.get(URL_CAMERA, stream=True, timeout=5)
+            if stream.status_code == 200:
+                bytes_buffer = bytes()
+                for chunk in stream.iter_content(chunk_size=4096):
+                    bytes_buffer += chunk
+                    a = bytes_buffer.find(b'\xff\xd8')
+                    b = bytes_buffer.find(b'\xff\xd9')
                     
-                    if matches[best_match_index]:
-                        name = data["names"][best_match_index]
-
-                    # se reconheceu:
-                    if name != "Desconhecido":
-                        acesso_liberado = True
-                        nome_liberado = name
-                        posicao_rosto = location 
+                    if a != -1 and b != -1:
+                        jpg = bytes_buffer[a:b+2]
+                        bytes_buffer = bytes_buffer[b+2:]
                         
-                        # imprime só uma vez no terminal
-                        print(f"\n{'='*30}")
-                        print(f"✅ ACESSO LIBERADO PARA: {name.upper()}")
-                        print(f"{'='*30}\n")
-                        print("Pressione 'q' ou 'ESC' para encerrar o sistema.")
+                        # Decodifica o frame
+                        frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        
+                        if frame is not None:
+                            # --- LÓGICA DE TEMPO (COOLDOWN) ---
+                            agora = time.time()
+                            tempo_passado = agora - ultimo_reconhecimento
+                            em_cooldown = tempo_passado < DELAY_RECONHECIMENTO
+                            
+                            if not em_cooldown:
+                                # --- MODO ATIVO: Roda a IA ---
+                                small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
+                                rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+                                
+                                # Detecta rostos
+                                locs = face_recognition.face_locations(rgb)
+                                
+                                # Só tenta reconhecer se tiver rostos E se tiver gente cadastrada
+                                if locs and len(lista_encodings) > 0:
+                                    encs = face_recognition.face_encodings(rgb, locs)
+                                    
+                                    for encoding in encs:
+                                        # Usa o lock para ler a lista com segurança
+                                        with lock:
+                                            matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
+                                            name = "Desconhecido"
+                                            if True in matches:
+                                                first_match_index = matches.index(True)
+                                                name = lista_nomes[first_match_index]
+                                        
+                                        if name != "Desconhecido":
+                                            print(f"== ACESSO LIBERADO: {name} ==")
+                                            ultimo_reconhecimento = agora
+                                            nome_ultimo_detectado = name
+                                            
+                                            # Visual Verde
+                                            cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
+                                            cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+                                else:
+                                    # Ninguém na frente ou banco vazio
+                                    cv2.rectangle(frame, (0, 0), (frame.shape[1], 30), (0, 0, 255), -1)
+                                    cv2.putText(frame, "APROXIME O ROSTO", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
-            # --- DESENHO NA TELA (INTERFACE) ---
-            
-            # se o acesso já foi liberado...
-            if acesso_liberado:
-                # barra verde no topo da janela
-                cv2.rectangle(frame, (0, 0), (frame.shape[1], 50), (0, 255, 0), -1)
-                texto = f"ACESSO LIBERADO: {nome_liberado}"
-                cv2.putText(frame, texto, (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
-                
+                            else:
+                                # --- MODO PAUSA (COOLDOWN) ---
+                                tempo_restante = int(DELAY_RECONHECIMENTO - tempo_passado)
+                                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (50,50,50), -1)
+                                cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+                                cv2.putText(frame, f"Proximo em: {tempo_restante}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
 
-            # se ainda não liberou, desenha "Aguardando..."
+                            # MOSTRA A JANELA (Isso garante que apareça na TV)
+                            cv2.imshow("Totem Facial", frame)
+                            
+                            # Atualiza frame para a API ver também
+                            with lock:
+                                frame_atual = frame.copy()
+                            
+                            if cv2.waitKey(1) & 0xFF == ord('q'):
+                                break
             else:
-                cv2.rectangle(frame, (0, 0), (frame.shape[1], 30), (0, 0, 255), -1)
-                cv2.putText(frame, "BLOQUEADO - APROXIME O ROSTO", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-            cv2.imshow("Sistema de Controle de Acesso", frame)
-            
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or key == 27: # 'q' ou ESC para sair
-                print("[INFO] Sistema encerrado pelo usuário.")
-                exit()
-                
+                time.sleep(1) # Espera um pouco se a câmera cair
         except Exception as e:
-            pass
+            # print(f"Erro câmera: {e}") # Comentado para não poluir o log
+            time.sleep(1)
+
+    cv2.destroyAllWindows()
+
+# --- API FLASK (ROTA NOVA PARA CADASTRAR SEM PARAR O TOTEM) ---
+
+@app.route('/api/cadastrar_direto', methods=['POST'])
+def cadastrar_direto():
+    global lista_encodings, lista_nomes
+    
+    if 'foto' not in request.files or 'nome' not in request.form:
+        return jsonify({"erro": "Faltou foto ou nome"}), 400
+    
+    arquivo = request.files['foto']
+    nome = request.form['nome']
+    
+    # Processa a imagem na memória RAM
+    npimg = np.frombuffer(arquivo.read(), np.uint8)
+    img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Gera embedding
+    caixas = face_recognition.face_locations(rgb)
+    if not caixas:
+        return jsonify({"erro": "Rosto não encontrado na foto enviada"}), 400
+        
+    novos_encodings = face_recognition.face_encodings(rgb, caixas)
+    
+    # Adiciona na lista PRINCIPAL (protegido pelo lock)
+    with lock:
+        lista_encodings.append(novos_encodings[0])
+        lista_nomes.append(nome)
+        
+        # Salva no disco
+        data = {"encodings": lista_encodings, "names": lista_nomes}
+        with open(ARQUIVO_DADOS, "wb") as f:
+            f.write(pickle.dumps(data))
+            
+    print(f"[API] Novo usuário cadastrado: {nome}")
+    return jsonify({"mensagem": f"Sucesso! {nome} cadastrado."}), 201
+
+@app.route('/usuarios', methods=['GET'])
+def listar():
+    return jsonify({"total": len(lista_nomes), "nomes": list(set(lista_nomes))})
+
+@app.route('/video_feed')
+def video_feed():
+    def gerar():
+        while True:
+            with lock:
+                if frame_atual is None: time.sleep(0.1); continue
+                flag, enc = cv2.imencode(".jpg", frame_atual)
+                if not flag: continue
+            yield(b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + bytearray(enc) + b'\r\n')
+    return Response(gerar(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# --- INICIALIZAÇÃO ---
+if __name__ == '__main__':
+    carregar_dados()
+    
+    # Inicia o Totem (Janela + Reconhecimento) em paralelo
+    t = threading.Thread(target=loop_reconhecimento)
+    t.daemon = True
+    t.start()
+    
+    # Inicia a API para receber cadastros
+    app.run(host='0.0.0.0', port=5000, debug=False)

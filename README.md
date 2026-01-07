@@ -51,6 +51,8 @@ pip install dlib --extra-index-url https://www.piwheels.org/simple --prefer-bina
 pip install face_recognition
 
 pip install requests
+
+pip install flask
 ```
 
 ### Instalação de Bibliotecas no Labrador
@@ -85,6 +87,10 @@ pip install requests
 
 ```python
 sudo apt install cmake -y
+```
+
+```python
+pip install flask
 ```
 
 2. Preparação do Ambiente Python
@@ -156,3 +162,4 @@ Caso dê errado o comando anteiror, adicione no final:
 ```python
 --break-system-packages
 ```
+
