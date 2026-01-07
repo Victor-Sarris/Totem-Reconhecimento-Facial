@@ -144,17 +144,6 @@ pip install dlib --extra-index-url https://www.piwheels.org/simple --prefer-bina
 
 Instalar a biblioteca de reconhecimento
 ```python
-pip install face_recognition --extra-index-url https://www.piwheels.org/simple --prefer-binary
-```
-
-Caso dê errado o comando anteiror, adicione no final:
-```python
---break-system-packages
-```
-
-Depois que instalar o dlib, não esqueça de instalar a outra biblioteca que precisa dele:
-
-```python
 python3 -m pip install face_recognition --extra-index-url https://www.piwheels.org/simple --prefer-binary
 ```
 
@@ -162,4 +151,3 @@ Caso dê errado o comando anteiror, adicione no final:
 ```python
 --break-system-packages
 ```
-
