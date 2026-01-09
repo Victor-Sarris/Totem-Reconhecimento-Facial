@@ -3,10 +3,10 @@ import numpy as np
 import requests
 import os
 
-# --- CONFIGURAÇÕES ---
+#  config
 nome_pessoa = "Sarris"
 url_esp32 = "http://192.168.18.159/stream" 
-# ---------------------
+
 
 data_path = "dataset"
 person_path = os.path.join(data_path, nome_pessoa)
