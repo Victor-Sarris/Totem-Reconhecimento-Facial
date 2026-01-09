@@ -3,10 +3,9 @@ import pickle
 import os
 import cv2
 
-# --- CONFIGURAÇÕES ---
+# config
 dataset_path = "dataset/"
 encoding_file = "encodings.pickle"
-# ---------------------
 
 known_encodings = []
 known_names = []

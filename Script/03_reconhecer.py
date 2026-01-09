@@ -7,20 +7,20 @@ import time
 import requests
 from flask import Flask, Response, jsonify, request
 
-# --- CONFIGURAÇÕES ---
+# config
 ARQUIVO_DADOS = "encodings.pickle"
-URL_CAMERA = "http://192.168.18.159/stream" # IP da sua ESP32
-DELAY_RECONHECIMENTO = 10  # Tempo (segundos) que o sistema pausa após reconhecer alguém
+URL_CAMERA = "http://192.168.18.159/stream" # IP espcam
+DELAY_RECONHECIMENTO = 10  # tempo em segundos que o sistema pausa após reconhecer alguém
 
 app = Flask(__name__)
 
-# --- VARIÁVEIS GLOBAIS ---
+# variaveis globais
 frame_atual = None
 lista_encodings = []
 lista_nomes = []
-lock = threading.Lock() # Cadeado para evitar que o cadastro atrapalhe o reconhecimento
+lock = threading.Lock() # evita que o cadastro atrapalhe o reconhecimento
 
-# --- CARREGAMENTO DE DADOS ---
+#  carregamento de dados 
 def carregar_dados():
     global lista_encodings, lista_nomes
     try:
@@ -35,16 +35,15 @@ def carregar_dados():
         lista_nomes = []
 
 def salvar_dados_pickle():
-    """Salva a lista atualizada no disco"""
     global lista_encodings, lista_nomes
-    # Usa o cadeado para garantir que ninguém mexa na lista enquanto salvamos
+    # usa o threading.Lock para garantir que ninguém mexa na lista enquanto salvamos
     with lock:
         data = {"encodings": lista_encodings, "names": lista_nomes}
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
     print("[SISTEMA] Banco de dados atualizado e salvo.")
 
-# --- THREAD DE VÍDEO E RECONHECIMENTO (A JANELA DO TOTEM) ---
+# inicia o reconhecimento 
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
@@ -53,7 +52,7 @@ def loop_reconhecimento():
     
     print(f"[VIDEO] Iniciando janela e conectando: {URL_CAMERA}")
     
-    # CRIA A JANELA NO MONITOR HDMI
+    # cria a janela no monitor externo
     cv2.namedWindow("Totem Facial", cv2.WINDOW_NORMAL)
     # cv2.setWindowProperty("Totem Facial", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN) # Descomente se quiser tela cheia
     
@@ -71,29 +70,30 @@ def loop_reconhecimento():
                         jpg = bytes_buffer[a:b+2]
                         bytes_buffer = bytes_buffer[b+2:]
                         
-                        # Decodifica o frame
+                        # decodifica o frame
                         frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
                         
                         if frame is not None:
-                            # --- LÓGICA DE TEMPO (COOLDOWN) ---
+                            # delay de 10 segundos entre um reconhecimento e outro
+                            # pensei nisso para diminuir o processamento da cpu do labrador
                             agora = time.time()
                             tempo_passado = agora - ultimo_reconhecimento
                             em_cooldown = tempo_passado < DELAY_RECONHECIMENTO
                             
                             if not em_cooldown:
-                                # --- MODO ATIVO: Roda a IA ---
+                                # inicia o reconhecimento
                                 small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
                                 rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
                                 
-                                # Detecta rostos
+                                # detecta rostos
                                 locs = face_recognition.face_locations(rgb)
                                 
-                                # Só tenta reconhecer se tiver rostos E se tiver gente cadastrada
+                                # só tenta reconhecer se tiver rostos E se tiver gente cadastrada
                                 if locs and len(lista_encodings) > 0:
                                     encs = face_recognition.face_encodings(rgb, locs)
                                     
                                     for encoding in encs:
-                                        # Usa o lock para ler a lista com segurança
+                                        # usa o lock para ler a lista com segurança
                                         with lock:
                                             matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
                                             name = "Desconhecido"
@@ -106,7 +106,7 @@ def loop_reconhecimento():
                                             ultimo_reconhecimento = agora
                                             nome_ultimo_detectado = name
                                             
-                                            # Visual Verde
+                                            # visual indicativo verde "acesso liberado" no topo da tela
                                             cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
                                             cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
                                 else:
@@ -121,19 +121,19 @@ def loop_reconhecimento():
                                 cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
                                 cv2.putText(frame, f"Proximo em: {tempo_restante}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
 
-                            # MOSTRA A JANELA (Isso garante que apareça na TV)
+                            # mostra a janela na tela hdmi
                             cv2.imshow("Totem Facial", frame)
                             
-                            # Atualiza frame para a API ver também
+                            # atualiza o frame para a api ()
                             with lock:
                                 frame_atual = frame.copy()
                             
                             if cv2.waitKey(1) & 0xFF == ord('q'):
                                 break
             else:
-                time.sleep(1) # Espera um pouco se a câmera cair
+                time.sleep(1) 
         except Exception as e:
-            # print(f"Erro câmera: {e}") # Comentado para não poluir o log
+            # print(f"Erro câmera: {e}") 
             time.sleep(1)
 
     cv2.destroyAllWindows()
@@ -150,24 +150,24 @@ def cadastrar_direto():
     arquivo = request.files['foto']
     nome = request.form['nome']
     
-    # Processa a imagem na memória RAM
+    # processa a imagem na memória RAM
     npimg = np.frombuffer(arquivo.read(), np.uint8)
     img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
-    # Gera embedding
+    # eera embedding
     caixas = face_recognition.face_locations(rgb)
     if not caixas:
         return jsonify({"erro": "Rosto não encontrado na foto enviada"}), 400
         
     novos_encodings = face_recognition.face_encodings(rgb, caixas)
     
-    # Adiciona na lista PRINCIPAL (protegido pelo lock)
+    # adiciona na lista PRINCIPAL (protegido pelo lock)
     with lock:
         lista_encodings.append(novos_encodings[0])
         lista_nomes.append(nome)
         
-        # Salva no disco
+        # salva no disco
         data = {"encodings": lista_encodings, "names": lista_nomes}
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
