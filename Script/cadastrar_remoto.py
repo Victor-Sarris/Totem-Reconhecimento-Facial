@@ -6,10 +6,10 @@ url = "http://192.168.18.149:5000/api/cadastrar_direto"
 
 # Caminho da PASTA com as fotos (Não precisa colocar o arquivo específico)
 # O script faz a varredura na pasta e manda as imagens para o Labrador
-pasta_imagens = "dataset/Sarris"
+pasta_imagens = "dataset/Eva"
 
 # Nome da pessoa que será cadastrada
-nome_cliente = "Sarris" 
+nome_cliente = "Eva Barros" 
 
 # inicio do script
 if not os.path.exists(pasta_imagens):
