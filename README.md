@@ -1,153 +1,28 @@
-Olá, seja bem vindo. Esse é um repositório destinado ao projeto de tcc que consiste na criação de um artefato tecnológico que resulte em um totem de reconhecimento facial automatizado e ambazado com os conceitos de 'Embedding'.
+# 📸 Totem de Reconhecimento Facial
 
-### É recomendado criar e ativar um ambiente de desenvolvimento:
+> Sistema de controle de acesso inteligente.
 
-Criar o Ambiente:
+## 📄 Sobre o Projeto
+Este projeto visa modernizar o controle de entrada através de um totem de reconhecimento facial. O sistema utiliza **Redes Neurais Convolucionais (CNNs)** para analisar rostos em tempo real, gerando assinaturas vetoriais únicas para validar a identidade dos usuários de forma segura e eficiente.
 
-```python
-python -m venv venv
-```
+## 🛠️ Hardware
+O projeto utiliza uma arquitetura híbrida para otimizar custos e desempenho:
 
+* **Labrador 32-Bits:** Unidade central de processamento (SBC). Responsável por rodar os algoritmos de IA, gerenciar o banco de dados e a lógica de acesso.
+* **ESP32-CAM:** Módulo de captura de imagem. Envia o fluxo de vídeo ou fotos estáticas para o processador central.
 
-Ativar o Ambiente no CMD:
+## 🚀 Tecnologias
+* **Linguagens:** Python (Backend/IA) e C++ (Firmware do ESP32).
+* **Inteligência Artificial:** Extração de características faciais (*Face Embeddings*) via CNNs.
+* **Comunicação:** Integração via rede (HTTP/WebSocket) entre a câmera e a placa Labrador.
 
-```
-venv\Scripts\activate
-```
+## ⚙️ Como Funciona
+1.  O **ESP32-CAM** captura a imagem do visitante.
+2.  A imagem é transmitida para a **Labrador**.
+3.  O algoritmo processa a imagem, detecta a face e compara os vetores biométricos com o banco de dados.
+4.  Se houver *match* (correspondência positiva), o sistema aciona a liberação (ex: trava magnética ou catraca).
 
-Ativar o Ambiente no PowerShell:
+---
+*Desenvolvido como Trabalho de Conclusão de Curso (TCC).*
 
-```
-.\venv\Scripts\Activate.ps1
-```
-
-### Para rodar o projeto é necessário usar as seguintes bibliotecas:
-
-```python
-
-- mediapipe==0.10.21
-
-- deepface
-
-- tf-keras
-
-- cv2
-
-- os
-
-- pickle
-
-```
-
-### Instalação de Bibliotecas (Se for fazer o teste no seu PC)
-
-``` python
-pip install opencv-python --extra-index-url https://www.piwheels.org/simple --prefer-binary
-
-pip install "numpy<2" --extra-index-url https://www.piwheels.org/simple --prefer-binary
-
-pip install dlib --extra-index-url https://www.piwheels.org/simple --prefer-binary
-
-pip install face_recognition
-
-pip install requests
-
-pip install flask
-```
-
-### Instalação de Bibliotecas no Labrador
-
-1. Primeiro, é importante criar e entrar no ambiente de desenvolvimento no Labrador.
-2. Em seguida, instale as bibliotecas dentro do Ambiente de Desenvolvimento do Labrador.
-
-Nota: Acesse a documentação para fazer o processo corretamente:
-[Documentação](Documentacao)
-
-1. Dependências do Sistema (Terminal Geral)
-
-Antes de tudo, é necessário instalar as bibliotecas matemáticas e gráficas que o OpenCV usa "por baixo do capô". Sem elas, o Python não consegue carregar a biblioteca.
-
-Antes de realizar a instalação de bibliotecas no SO do labrador, certifique de checar as bibliotecas já existentes:
-
-```python
-sudo apt update
-```
-
-Agora você pode instalar normalmente as bibliotecas que precisa:
-
-```python
-sudo apt install -y libopenblas-dev libatlas-base-dev libgtk-3-0 libavcodec-extra
-```
-```python
-sudo apt install ffmpeg -y
-```
-```python
-pip install requests
-```
-
-```python
-sudo apt install cmake -y
-```
-
-```python
-pip install flask
-```
-
-2. Preparação do Ambiente Python
-
-Certifique-se de estar com seu ambiente virtual ativado (se estiver usando um):
-
-```python
-source venv/bin/activate
-```
-
-Caso o Numpy ou OpenCV já estejam instalados de forma errada (versões incompatíveis ou quebradas), remova-os para começar limpo:
-
-```python
-pip uninstall opencv-python numpy -y
-```
-
-3. Instalação Otimizada (O "Pulo do Gato")
-
-O segredo para não demorar horas compilando é usar o repositório PiWheels e a flag --prefer-binary.
-
-Instalar o OpenCV (Versão Binary): Isso baixa o arquivo .whl já pronto para ARMv7.
-
-```python
-pip install opencv-python --extra-index-url https://www.piwheels.org/simple --prefer-binary
-```
-(Nota: Isso geralmente instala a versão 4.7.0.72 ou similar compatível)
-
-Instalar o Numpy (Versão Compatível < 2.0): O OpenCV 4.x não funciona com o Numpy 2.0+. Precisamos forçar uma versão anterior (série 1.x) que também seja binária.
-
-```python
-pip install "numpy<2" --extra-index-url https://www.piwheels.org/simple --prefer-binary
-```
-
-4. Validação
-
-Para confirmar que tudo deu certo, rode o comando abaixo. Se aparecer a versão (ex: 4.7.0) e nenhum erro, o ambiente está pronto.
-
-```python
-python3 -c "import cv2; print(f'OpenCV Version: {cv2.__version__}')"
-```
-
-Resumo dos Erros Comuns (Troubleshooting)
-- Erro libGL.so, libopenblas.so ou libcblas.so: Significa que faltou rodar o passo 1 (dependências do sistema via apt).
-- Demora de horas na instalação: Significa que você esqueceu as flags --extra-index-url ... ou --prefer-binary, e o Labrador está tentando compilar o código fonte.
-- Erro numpy.core.multiarray failed to import: Significa que você instalou o Numpy 2.0. Remova-o e instale com "numpy<2".
-
-Instalar o Dlib (Versão Binária - Rápida)
-```python
-pip install dlib --extra-index-url https://www.piwheels.org/simple --prefer-binary
-```
-
-Instalar a biblioteca de reconhecimento
-```python
-python3 -m pip install face_recognition --extra-index-url https://www.piwheels.org/simple --prefer-binary
-```
-
-Caso dê errado o comando anteiror, adicione no final:
-```python
---break-system-packages
-```
+<!-- tmj é nois -->
