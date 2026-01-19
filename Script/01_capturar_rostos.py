@@ -3,7 +3,6 @@ import numpy as np
 import requests
 import os
 
-#  config
 nome_pessoa = "Sarris"
 url_esp32 = "http://192.168.18.159/stream" 
 
@@ -26,7 +25,6 @@ try:
     for chunk in stream.iter_content(chunk_size=4096):
         bytes_buffer += chunk
         
-        # loop para processar tudo que estiver no buffer
         while True:
             a = bytes_buffer.find(b'\xff\xd8')
             b = bytes_buffer.find(b'\xff\xd9')
@@ -34,20 +32,17 @@ try:
             if a == -1 or b == -1:
                 break
                 
-            # se o buffer tiver cheio, faz a limpeza do mesmo
             if b < a:
                 bytes_buffer = bytes_buffer[b+2:]
-                continue # limpa o buffer e tenta novamente
+                continue 
 
             jpg = bytes_buffer[a:b+2]
-            bytes_buffer = bytes_buffer[b+2:] # remove a imagem já processada
+            bytes_buffer = bytes_buffer[b+2:] 
             
-            # tenta decodificar
             try:
                 frame = cv.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv.IMREAD_COLOR)
                 
                 if frame is not None:
-                    # redimensiona a imagem para menor processamento
                     # frame = cv.resize(frame, (640, 480))
                     
                     cv.imshow("Captura Manual", frame)
@@ -61,7 +56,7 @@ try:
                     elif key == 27: # ESC
                         exit()
             except Exception as e:
-                pass # se der erro num frame específico, apenas ignora e vai pro próximo
+                pass 
 
 except Exception as e:
     print(f"Erro: {e}")

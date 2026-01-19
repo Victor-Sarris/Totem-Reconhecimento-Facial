@@ -7,21 +7,18 @@ import time
 import requests
 from flask import Flask, Response, jsonify, request
 
-# --- CONFIGURAÇÕES ---
 ARQUIVO_DADOS = "encodings.pickle"
 URL_CAMERA = "http://192.168.18.159/stream"
-DELAY_RECONHECIMENTO = 10  # Cooldown após liberar (segundos)
-INTERVALO_SCAN_IA = 1.0    # Só roda IA de 1 em 1 segundo
+DELAY_RECONHECIMENTO = 10  
+INTERVALO_SCAN_IA = 1.0   
 
 app = Flask(__name__)
 
-# --- VARIÁVEIS GLOBAIS ---
 frame_atual = None
 lista_encodings = []
 lista_nomes = []
 lock = threading.Lock()
 
-# --- CLASSE DE CAPTURA DE VÍDEO (THREADED) ---
 class VideoStream:
     def __init__(self, src):
         self.stream = requests.get(src, stream=True, timeout=10)
@@ -38,8 +35,6 @@ class VideoStream:
         return self
 
     def update(self):
-        # Esta função roda em background só "comendo" bytes da rede
-        # para o buffer nunca encher e travar.
         for chunk in self.stream.iter_content(chunk_size=4096):
             if not self.rodando: break
             self.bytes_buffer += chunk
@@ -51,19 +46,16 @@ class VideoStream:
                 jpg = self.bytes_buffer[a:b+2]
                 self.bytes_buffer = self.bytes_buffer[b+2:]
                 
-                # Guarda apenas os bytes (não decodifica aqui para não gastar CPU)
                 with self.lock_video:
                     self.ultimo_frame_jpg = jpg
 
     def read(self):
-        # Retorna o último frame pronto
         with self.lock_video:
             return self.ultimo_frame_jpg
 
     def stop(self):
         self.rodando = False
 
-# --- CARREGAMENTO DE DADOS ---
 def carregar_dados():
     global lista_encodings, lista_nomes
     try:
@@ -84,7 +76,6 @@ def salvar_dados_pickle():
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
 
-# --- THREAD PRINCIPAL (EXIBIÇÃO + IA) ---
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
@@ -94,7 +85,6 @@ def loop_reconhecimento():
     
     print(f"[VIDEO] Iniciando buffer de vídeo: {URL_CAMERA}")
     
-    # Inicia o capturador em background
     videostream = VideoStream(URL_CAMERA).start()
     time.sleep(2.0) # Espera encher o buffer
     
@@ -102,14 +92,12 @@ def loop_reconhecimento():
     
     while True:
         try:
-            # 1. Pega o frame já baixado pela outra thread
             jpg_bytes = videostream.read()
             
             if jpg_bytes is None:
                 time.sleep(0.01)
                 continue
                 
-            # 2. Decodifica (Aqui gastamos CPU, mas só com o frame mais recente)
             frame = cv2.imdecode(np.frombuffer(jpg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
             
             if frame is None: continue
@@ -118,16 +106,12 @@ def loop_reconhecimento():
             em_cooldown = (agora - ultimo_sucesso) < DELAY_RECONHECIMENTO
             
             if not em_cooldown:
-                # --- OTIMIZAÇÃO DE IA ---
-                # Só entra aqui se o relógio permitir (1 vez por seg)
                 if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
                     ultimo_check_ia = agora
                     
-                    # Reduz imagem para IA
                     small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
                     rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
                     
-                    # Detecta
                     locs = face_recognition.face_locations(rgb)
                     
                     if locs and len(lista_encodings) > 0:
@@ -145,20 +129,16 @@ def loop_reconhecimento():
                                 print(f"== ACESSO LIBERADO: {name} ==")
                                 ultimo_sucesso = agora
                                 nome_ultimo_detectado = name
-                                # Feedback visual imediato
                                 cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
                                 cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
                 else:
-                    # Se não for hora da IA, não faz nada pesado
                     pass
             else:
-                # Feedback de Cooldown
                 tempo = int(DELAY_RECONHECIMENTO - (agora - ultimo_sucesso))
                 cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (50,50,50), -1)
                 cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
                 cv2.putText(frame, f"Proximo: {tempo}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
 
-            # 3. Exibe o frame
             cv2.imshow("Totem Facial", frame)
             
             with lock:
@@ -168,14 +148,11 @@ def loop_reconhecimento():
                 break
                 
         except Exception as e:
-            # Se a conexão cair, tenta reiniciar o stream
-            # print(f"Erro no loop: {e}")
             time.sleep(1)
             
     videostream.stop()
     cv2.destroyAllWindows()
 
-# --- API FLASK ---
 @app.route('/api/cadastrar_direto', methods=['POST'])
 def cadastrar_direto():
     global lista_encodings, lista_nomes
