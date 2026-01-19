@@ -1,17 +1,10 @@
 import requests
 import os
 
-# IP do Labrador 
 url = "http://192.168.18.149:5000/api/cadastrar_direto"
-
-# caminho da PASTA com as fotos (Não precisa colocar o arquivo específico)
-# o script faz a varredura na pasta e manda as imagens para o Labrador
 pasta_imagens = "dataset/Eva"
-
-# nome da pessoa que será cadastrada
 nome_cliente = "Eva Barros" 
 
-# inicio do script
 if not os.path.exists(pasta_imagens):
     print(f" Erro: A pasta '{pasta_imagens}' não foi encontrada.")
     exit()
@@ -36,7 +29,6 @@ for i, arquivo in enumerate(fotos_validas):
             files = {'foto': f}
             data = {'nome': nome_cliente}
             
-            # envia para o Labrador
             response = requests.post(url, files=files, data=data)
             
         if response.status_code == 201:
