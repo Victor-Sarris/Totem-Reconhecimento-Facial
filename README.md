@@ -12,6 +12,7 @@ O projeto utiliza uma arquitetura híbrida para otimizar custos e desempenho:
 
 * **Labrador 32-Bits:** Unidade central de processamento (SBC). Responsável por rodar os algoritmos de IA, gerenciar o banco de dados e a lógica de acesso.
 * **ESP32-CAM:** Módulo de captura de imagem. Envia o fluxo de vídeo ou fotos estáticas para o processador central.
+* **PAINEL IPS:** Painel IPS de 7 Polegadas para visualização do Reconhecimento.
 
 ## 🚀 Tecnologias
 * **Linguagens:** Python (Backend/IA) e C++ (Firmware do ESP32).
@@ -27,4 +28,4 @@ O projeto utiliza uma arquitetura híbrida para otimizar custos e desempenho:
 ---
 *Desenvolvido como Trabalho de Conclusão de Curso (TCC).*
 
-<!-- tmj é nois -->
+<!-- Somos todos apenas pó de estrela (👉ﾟヮﾟ)👉 -->
