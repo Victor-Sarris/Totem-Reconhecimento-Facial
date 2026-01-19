@@ -7,20 +7,21 @@ import time
 import requests
 from flask import Flask, Response, jsonify, request
 
-# config
+# --- CONFIGURAÇÕES ---
 ARQUIVO_DADOS = "encodings.pickle"
-URL_CAMERA = "http://192.168.18.159/stream" # IP espcam
-DELAY_RECONHECIMENTO = 10  # tempo em segundos que o sistema pausa após reconhecer alguém
+URL_CAMERA = "http://192.168.18.159/stream" # IP da sua ESP32
+DELAY_RECONHECIMENTO = 10  # Tempo (s) de pausa após liberar acesso (Cooldown)
+INTERVALO_SCAN_IA = 1.0    # Tempo (s) entre checagens de rosto (Otimização de CPU)
 
 app = Flask(__name__)
 
-# variaveis globais
+# --- VARIÁVEIS GLOBAIS ---
 frame_atual = None
 lista_encodings = []
 lista_nomes = []
-lock = threading.Lock() # evita que o cadastro atrapalhe o reconhecimento
+lock = threading.Lock()
 
-#  carregamento de dados 
+# --- CARREGAMENTO DE DADOS ---
 def carregar_dados():
     global lista_encodings, lista_nomes
     try:
@@ -36,25 +37,23 @@ def carregar_dados():
 
 def salvar_dados_pickle():
     global lista_encodings, lista_nomes
-    # usa o threading.Lock para garantir que ninguém mexa na lista enquanto salvamos
     with lock:
         data = {"encodings": lista_encodings, "names": lista_nomes}
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
-    print("[SISTEMA] Banco de dados atualizado e salvo.")
+    print("[SISTEMA] Banco de dados salvo.")
 
-# inicia o reconhecimento 
+# --- THREAD DE VÍDEO E RECONHECIMENTO ---
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
-    ultimo_reconhecimento = 0
+    ultimo_sucesso = 0        # Para o Cooldown de 10s
+    ultimo_check_ia = 0       # Para a Otimização de 1s
     nome_ultimo_detectado = ""
     
-    print(f"[VIDEO] Iniciando janela e conectando: {URL_CAMERA}")
-    
-    # cria a janela no monitor externo
+    print(f"[VIDEO] Conectando à câmera: {URL_CAMERA}")
     cv2.namedWindow("Totem Facial", cv2.WINDOW_NORMAL)
-    # cv2.setWindowProperty("Totem Facial", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN) # Descomente se quiser tela cheia
+    # cv2.setWindowProperty("Totem Facial", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
     while True:
         try:
@@ -70,109 +69,107 @@ def loop_reconhecimento():
                         jpg = bytes_buffer[a:b+2]
                         bytes_buffer = bytes_buffer[b+2:]
                         
-                        # decodifica o frame
+                        # Decodifica frame (Leve)
                         frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
                         
                         if frame is not None:
-                            # delay de 10 segundos entre um reconhecimento e outro
-                            # pensei nisso para diminuir o processamento da cpu do labrador
                             agora = time.time()
-                            tempo_passado = agora - ultimo_reconhecimento
-                            em_cooldown = tempo_passado < DELAY_RECONHECIMENTO
+                            
+                            # 1. Verifica se está em Cooldown (Acesso liberado recentemente)
+                            tempo_passado_sucesso = agora - ultimo_sucesso
+                            em_cooldown = tempo_passado_sucesso < DELAY_RECONHECIMENTO
                             
                             if not em_cooldown:
-                                # inicia o reconhecimento
-                                small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
-                                rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+                                # --- MODO BUSCA ---
                                 
-                                # detecta rostos
-                                locs = face_recognition.face_locations(rgb)
-                                
-                                # só tenta reconhecer se tiver rostos E se tiver gente cadastrada
-                                if locs and len(lista_encodings) > 0:
-                                    encs = face_recognition.face_encodings(rgb, locs)
+                                # OTIMIZAÇÃO: Só roda a IA se passou 1 segundo desde a última vez
+                                if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
+                                    ultimo_check_ia = agora
                                     
-                                    for encoding in encs:
-                                        # usa o lock para ler a lista com segurança
-                                        with lock:
-                                            matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
-                                            name = "Desconhecido"
-                                            if True in matches:
-                                                first_match_index = matches.index(True)
-                                                name = lista_nomes[first_match_index]
+                                    # Reduz imagem para IA (Processamento pesado)
+                                    small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
+                                    rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+                                    
+                                    # Detecta rostos
+                                    locs = face_recognition.face_locations(rgb)
+                                    
+                                    if locs and len(lista_encodings) > 0:
+                                        encs = face_recognition.face_encodings(rgb, locs)
                                         
-                                        if name != "Desconhecido":
-                                            print(f"== ACESSO LIBERADO: {name} ==")
-                                            ultimo_reconhecimento = agora
-                                            nome_ultimo_detectado = name
+                                        for encoding in encs:
+                                            with lock: # Leitura segura da lista
+                                                matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
+                                                name = "Desconhecido"
+                                                if True in matches:
+                                                    first_match_index = matches.index(True)
+                                                    name = lista_nomes[first_match_index]
                                             
-                                            # visual indicativo verde "acesso liberado" no topo da tela
-                                            cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
-                                            cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+                                            if name != "Desconhecido":
+                                                print(f"== ACESSO LIBERADO: {name} ==")
+                                                ultimo_sucesso = agora
+                                                nome_ultimo_detectado = name
+                                                
+                                                # Feedback imediato no frame atual
+                                                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
+                                                cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+                                                
+                                    # Se não achou ninguém, desenha box padrão (opcional)
+                                    elif not locs:
+                                         cv2.putText(frame, ".", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
+
                                 else:
-                                    # Ninguém na frente ou banco vazio
-                                    cv2.rectangle(frame, (0, 0), (frame.shape[1], 30), (0, 0, 255), -1)
-                                    cv2.putText(frame, "APROXIME O ROSTO", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                                    # Se NÃO for hora da IA, apenas mostra o vídeo limpo
+                                    # Isso economiza muita CPU
+                                    pass
 
                             else:
-                                # --- MODO PAUSA (COOLDOWN) ---
-                                tempo_restante = int(DELAY_RECONHECIMENTO - tempo_passado)
+                                # --- MODO PAUSA (COOLDOWN ATIVO) ---
+                                tempo_restante = int(DELAY_RECONHECIMENTO - tempo_passado_sucesso)
                                 cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (50,50,50), -1)
                                 cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
                                 cv2.putText(frame, f"Proximo em: {tempo_restante}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
 
-                            # mostra a janela na tela hdmi
+                            # MOSTRA O VÍDEO (Sempre fluido)
                             cv2.imshow("Totem Facial", frame)
                             
-                            # atualiza o frame para a api ()
+                            # Atualiza para API
                             with lock:
                                 frame_atual = frame.copy()
                             
                             if cv2.waitKey(1) & 0xFF == ord('q'):
                                 break
             else:
-                time.sleep(1) 
-        except Exception as e:
-            # print(f"Erro câmera: {e}") 
+                time.sleep(1)
+        except Exception:
             time.sleep(1)
-
+            
     cv2.destroyAllWindows()
 
-# --- API FLASK (ROTA NOVA PARA CADASTRAR SEM PARAR O TOTEM) ---
-
+# --- API FLASK ---
 @app.route('/api/cadastrar_direto', methods=['POST'])
 def cadastrar_direto():
     global lista_encodings, lista_nomes
-    
     if 'foto' not in request.files or 'nome' not in request.form:
         return jsonify({"erro": "Faltou foto ou nome"}), 400
     
     arquivo = request.files['foto']
     nome = request.form['nome']
     
-    # processa a imagem na memória RAM
     npimg = np.frombuffer(arquivo.read(), np.uint8)
     img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
-    # eera embedding
     caixas = face_recognition.face_locations(rgb)
-    if not caixas:
-        return jsonify({"erro": "Rosto não encontrado na foto enviada"}), 400
+    if not caixas: return jsonify({"erro": "Rosto não encontrado"}), 400
         
     novos_encodings = face_recognition.face_encodings(rgb, caixas)
     
-    # adiciona na lista PRINCIPAL (protegido pelo lock)
     with lock:
         lista_encodings.append(novos_encodings[0])
         lista_nomes.append(nome)
-        
-        # salva no disco
-        data = {"encodings": lista_encodings, "names": lista_nomes}
-        with open(ARQUIVO_DADOS, "wb") as f:
-            f.write(pickle.dumps(data))
+        salvar_dados_pickle()
             
-    print(f"[API] Novo usuário cadastrado: {nome}")
+    print(f"[API] Cadastrado: {nome}")
     return jsonify({"mensagem": f"Sucesso! {nome} cadastrado."}), 201
 
 @app.route('/usuarios', methods=['GET'])
@@ -190,14 +187,9 @@ def video_feed():
             yield(b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + bytearray(enc) + b'\r\n')
     return Response(gerar(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-# --- INICIALIZAÇÃO ---
 if __name__ == '__main__':
     carregar_dados()
-    
-    # Inicia o Totem (Janela + Reconhecimento) em paralelo
     t = threading.Thread(target=loop_reconhecimento)
     t.daemon = True
     t.start()
-    
-    # Inicia a API para receber cadastros
     app.run(host='0.0.0.0', port=5000, debug=False)
