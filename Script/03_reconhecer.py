@@ -9,9 +9,9 @@ from flask import Flask, Response, jsonify, request
 
 # --- CONFIGURAÇÕES ---
 ARQUIVO_DADOS = "encodings.pickle"
-URL_CAMERA = "http://192.168.18.159/stream" # IP da sua ESP32
-DELAY_RECONHECIMENTO = 10  # Tempo (s) de pausa após liberar acesso (Cooldown)
-INTERVALO_SCAN_IA = 1.0    # Tempo (s) entre checagens de rosto (Otimização de CPU)
+URL_CAMERA = "http://192.168.18.159/stream"
+DELAY_RECONHECIMENTO = 10  # Cooldown após liberar (segundos)
+INTERVALO_SCAN_IA = 1.0    # Só roda IA de 1 em 1 segundo
 
 app = Flask(__name__)
 
@@ -20,6 +20,48 @@ frame_atual = None
 lista_encodings = []
 lista_nomes = []
 lock = threading.Lock()
+
+# --- CLASSE DE CAPTURA DE VÍDEO (THREADED) ---
+class VideoStream:
+    def __init__(self, src):
+        self.stream = requests.get(src, stream=True, timeout=10)
+        self.bytes_buffer = bytes()
+        self.ultimo_frame_jpg = None
+        self.rodando = False
+        self.lock_video = threading.Lock()
+
+    def start(self):
+        self.rodando = True
+        t = threading.Thread(target=self.update, args=())
+        t.daemon = True
+        t.start()
+        return self
+
+    def update(self):
+        # Esta função roda em background só "comendo" bytes da rede
+        # para o buffer nunca encher e travar.
+        for chunk in self.stream.iter_content(chunk_size=4096):
+            if not self.rodando: break
+            self.bytes_buffer += chunk
+            
+            a = self.bytes_buffer.find(b'\xff\xd8')
+            b = self.bytes_buffer.find(b'\xff\xd9')
+            
+            if a != -1 and b != -1:
+                jpg = self.bytes_buffer[a:b+2]
+                self.bytes_buffer = self.bytes_buffer[b+2:]
+                
+                # Guarda apenas os bytes (não decodifica aqui para não gastar CPU)
+                with self.lock_video:
+                    self.ultimo_frame_jpg = jpg
+
+    def read(self):
+        # Retorna o último frame pronto
+        with self.lock_video:
+            return self.ultimo_frame_jpg
+
+    def stop(self):
+        self.rodando = False
 
 # --- CARREGAMENTO DE DADOS ---
 def carregar_dados():
@@ -41,108 +83,96 @@ def salvar_dados_pickle():
         data = {"encodings": lista_encodings, "names": lista_nomes}
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
-    print("[SISTEMA] Banco de dados salvo.")
 
-# --- THREAD DE VÍDEO E RECONHECIMENTO ---
+# --- THREAD PRINCIPAL (EXIBIÇÃO + IA) ---
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
-    ultimo_sucesso = 0        # Para o Cooldown de 10s
-    ultimo_check_ia = 0       # Para a Otimização de 1s
+    ultimo_sucesso = 0
+    ultimo_check_ia = 0
     nome_ultimo_detectado = ""
     
-    print(f"[VIDEO] Conectando à câmera: {URL_CAMERA}")
+    print(f"[VIDEO] Iniciando buffer de vídeo: {URL_CAMERA}")
+    
+    # Inicia o capturador em background
+    videostream = VideoStream(URL_CAMERA).start()
+    time.sleep(2.0) # Espera encher o buffer
+    
     cv2.namedWindow("Totem Facial", cv2.WINDOW_NORMAL)
-    # cv2.setWindowProperty("Totem Facial", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
     while True:
         try:
-            stream = requests.get(URL_CAMERA, stream=True, timeout=5)
-            if stream.status_code == 200:
-                bytes_buffer = bytes()
-                for chunk in stream.iter_content(chunk_size=4096):
-                    bytes_buffer += chunk
-                    a = bytes_buffer.find(b'\xff\xd8')
-                    b = bytes_buffer.find(b'\xff\xd9')
+            # 1. Pega o frame já baixado pela outra thread
+            jpg_bytes = videostream.read()
+            
+            if jpg_bytes is None:
+                time.sleep(0.01)
+                continue
+                
+            # 2. Decodifica (Aqui gastamos CPU, mas só com o frame mais recente)
+            frame = cv2.imdecode(np.frombuffer(jpg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+            
+            if frame is None: continue
+
+            agora = time.time()
+            em_cooldown = (agora - ultimo_sucesso) < DELAY_RECONHECIMENTO
+            
+            if not em_cooldown:
+                # --- OTIMIZAÇÃO DE IA ---
+                # Só entra aqui se o relógio permitir (1 vez por seg)
+                if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
+                    ultimo_check_ia = agora
                     
-                    if a != -1 and b != -1:
-                        jpg = bytes_buffer[a:b+2]
-                        bytes_buffer = bytes_buffer[b+2:]
+                    # Reduz imagem para IA
+                    small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
+                    rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+                    
+                    # Detecta
+                    locs = face_recognition.face_locations(rgb)
+                    
+                    if locs and len(lista_encodings) > 0:
+                        encs = face_recognition.face_encodings(rgb, locs)
                         
-                        # Decodifica frame (Leve)
-                        frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                        
-                        if frame is not None:
-                            agora = time.time()
-                            
-                            # 1. Verifica se está em Cooldown (Acesso liberado recentemente)
-                            tempo_passado_sucesso = agora - ultimo_sucesso
-                            em_cooldown = tempo_passado_sucesso < DELAY_RECONHECIMENTO
-                            
-                            if not em_cooldown:
-                                # --- MODO BUSCA ---
-                                
-                                # OTIMIZAÇÃO: Só roda a IA se passou 1 segundo desde a última vez
-                                if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
-                                    ultimo_check_ia = agora
-                                    
-                                    # Reduz imagem para IA (Processamento pesado)
-                                    small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
-                                    rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-                                    
-                                    # Detecta rostos
-                                    locs = face_recognition.face_locations(rgb)
-                                    
-                                    if locs and len(lista_encodings) > 0:
-                                        encs = face_recognition.face_encodings(rgb, locs)
-                                        
-                                        for encoding in encs:
-                                            with lock: # Leitura segura da lista
-                                                matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
-                                                name = "Desconhecido"
-                                                if True in matches:
-                                                    first_match_index = matches.index(True)
-                                                    name = lista_nomes[first_match_index]
-                                            
-                                            if name != "Desconhecido":
-                                                print(f"== ACESSO LIBERADO: {name} ==")
-                                                ultimo_sucesso = agora
-                                                nome_ultimo_detectado = name
-                                                
-                                                # Feedback imediato no frame atual
-                                                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
-                                                cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-                                                
-                                    # Se não achou ninguém, desenha box padrão (opcional)
-                                    elif not locs:
-                                         cv2.putText(frame, ".", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
-
-                                else:
-                                    # Se NÃO for hora da IA, apenas mostra o vídeo limpo
-                                    # Isso economiza muita CPU
-                                    pass
-
-                            else:
-                                # --- MODO PAUSA (COOLDOWN ATIVO) ---
-                                tempo_restante = int(DELAY_RECONHECIMENTO - tempo_passado_sucesso)
-                                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (50,50,50), -1)
-                                cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
-                                cv2.putText(frame, f"Proximo em: {tempo_restante}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
-
-                            # MOSTRA O VÍDEO (Sempre fluido)
-                            cv2.imshow("Totem Facial", frame)
-                            
-                            # Atualiza para API
+                        for encoding in encs:
                             with lock:
-                                frame_atual = frame.copy()
+                                matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
+                                name = "Desconhecido"
+                                if True in matches:
+                                    first_match_index = matches.index(True)
+                                    name = lista_nomes[first_match_index]
                             
-                            if cv2.waitKey(1) & 0xFF == ord('q'):
-                                break
+                            if name != "Desconhecido":
+                                print(f"== ACESSO LIBERADO: {name} ==")
+                                ultimo_sucesso = agora
+                                nome_ultimo_detectado = name
+                                # Feedback visual imediato
+                                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
+                                cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+                else:
+                    # Se não for hora da IA, não faz nada pesado
+                    pass
             else:
-                time.sleep(1)
-        except Exception:
+                # Feedback de Cooldown
+                tempo = int(DELAY_RECONHECIMENTO - (agora - ultimo_sucesso))
+                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (50,50,50), -1)
+                cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+                cv2.putText(frame, f"Proximo: {tempo}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
+
+            # 3. Exibe o frame
+            cv2.imshow("Totem Facial", frame)
+            
+            with lock:
+                frame_atual = frame.copy()
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+        except Exception as e:
+            # Se a conexão cair, tenta reiniciar o stream
+            # print(f"Erro no loop: {e}")
             time.sleep(1)
             
+    videostream.stop()
     cv2.destroyAllWindows()
 
 # --- API FLASK ---
@@ -161,7 +191,6 @@ def cadastrar_direto():
     
     caixas = face_recognition.face_locations(rgb)
     if not caixas: return jsonify({"erro": "Rosto não encontrado"}), 400
-        
     novos_encodings = face_recognition.face_encodings(rgb, caixas)
     
     with lock:
@@ -169,7 +198,6 @@ def cadastrar_direto():
         lista_nomes.append(nome)
         salvar_dados_pickle()
             
-    print(f"[API] Cadastrado: {nome}")
     return jsonify({"mensagem": f"Sucesso! {nome} cadastrado."}), 201
 
 @app.route('/usuarios', methods=['GET'])
