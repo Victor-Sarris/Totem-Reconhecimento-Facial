@@ -5,6 +5,8 @@
 ## 📄 Sobre o Projeto
 Este projeto visa modernizar o controle de entrada através de um totem de reconhecimento facial. O sistema utiliza **Redes Neurais Convolucionais (CNNs)** para analisar rostos em tempo real, gerando assinaturas vetoriais únicas para validar a identidade dos usuários de forma segura e eficiente.
 
+Você pode encontrar a documentação dos scripts aqui: https://victors-2.gitbook.io/victors-docs/
+
 ## 🛠️ Hardware
 O projeto utiliza uma arquitetura híbrida para otimizar custos e desempenho:
 
