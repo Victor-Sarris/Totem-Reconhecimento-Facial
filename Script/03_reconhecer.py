@@ -13,7 +13,7 @@ URL_CAMERA = "http://192.168.18.159/stream"
 DELAY_RECONHECIMENTO = 10
 INTERVALO_SCAN_IA = 1.0
 
-# CONFIGURAÇÃO DA TELA (AJUSTE SE SUA TELA FOR DIFERENTE)
+# CONFIGURAÇÃO DA TELA
 LARGURA_TELA = 1024
 ALTURA_TELA = 600
 
@@ -25,10 +25,11 @@ lista_encodings = []
 lista_nomes = []
 lock = threading.Lock()
 
-# --- CLASSE DE CAPTURA DE VÍDEO ---
+# --- CLASSE DE VÍDEO BLINDADA (AUTO-RECONNECT) ---
 class VideoStream:
     def __init__(self, src):
-        self.stream = requests.get(src, stream=True, timeout=10)
+        self.src = src
+        self.stream = None
         self.bytes_buffer = bytes()
         self.ultimo_frame_jpg = None
         self.rodando = False
@@ -42,18 +43,37 @@ class VideoStream:
         return self
 
     def update(self):
-        for chunk in self.stream.iter_content(chunk_size=4096):
-            if not self.rodando: break
-            self.bytes_buffer += chunk
-            
-            a = self.bytes_buffer.find(b'\xff\xd8')
-            b = self.bytes_buffer.find(b'\xff\xd9')
-            
-            if a != -1 and b != -1:
-                jpg = self.bytes_buffer[a:b+2]
-                self.bytes_buffer = self.bytes_buffer[b+2:]
-                with self.lock_video:
-                    self.ultimo_frame_jpg = jpg
+        while self.rodando:
+            try:
+                # Se não tiver conexão, tenta conectar
+                if self.stream is None:
+                    # print(f"[VIDEO] Conectando stream...") 
+                    # (Comentei o print pra não poluir o log se ficar tentando reconectar)
+                    self.stream = requests.get(self.src, stream=True, timeout=5)
+
+                # Lê os pedaços (chunks) da stream
+                for chunk in self.stream.iter_content(chunk_size=4096):
+                    if not self.rodando: 
+                        if self.stream: self.stream.close()
+                        break
+                    
+                    self.bytes_buffer += chunk
+                    
+                    a = self.bytes_buffer.find(b'\xff\xd8')
+                    b = self.bytes_buffer.find(b'\xff\xd9')
+                    
+                    if a != -1 and b != -1:
+                        jpg = self.bytes_buffer[a:b+2]
+                        self.bytes_buffer = self.bytes_buffer[b+2:]
+                        with self.lock_video:
+                            self.ultimo_frame_jpg = jpg
+                            
+            except Exception as e:
+                # Se der erro (timeout, desconexão), entra aqui em vez de travar o programa
+                print(f"[AVISO] Conexão de vídeo perdida. Reconectando em 2s... Erro: {e}")
+                self.stream = None
+                self.bytes_buffer = bytes() # Limpa buffer antigo
+                time.sleep(2)
 
     def read(self):
         with self.lock_video:
@@ -62,7 +82,7 @@ class VideoStream:
     def stop(self):
         self.rodando = False
 
-# --- FUNÇÕES AUXILIARES ---
+# --- FUNÇÕES DE DADOS ---
 def carregar_dados():
     global lista_encodings, lista_nomes
     try:
@@ -83,7 +103,7 @@ def salvar_dados_pickle():
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
 
-# --- LOOP PRINCIPAL (TELA CHEIA FORÇADA) ---
+# --- LOOP PRINCIPAL ---
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
@@ -91,42 +111,41 @@ def loop_reconhecimento():
     ultimo_check_ia = 0
     nome_ultimo_detectado = ""
     
-    print(f"[VIDEO] Iniciando buffer de vídeo: {URL_CAMERA}")
+    print(f"[VIDEO] Iniciando sistema de vídeo: {URL_CAMERA}")
     videostream = VideoStream(URL_CAMERA).start()
-    time.sleep(2.0) 
+    
+    # Aguarda um pouco para pegar o primeiro frame
+    time.sleep(2.0)
     
     nome_janela = "Totem Facial"
     cv2.namedWindow(nome_janela, cv2.WINDOW_NORMAL)
-    
-    # 1. Força a janela a ir para o canto e ter o tamanho da tela
     cv2.moveWindow(nome_janela, 0, 0)
     cv2.resizeWindow(nome_janela, LARGURA_TELA, ALTURA_TELA)
-    
-    # 2. Tenta ativar o modo fullscreen nativo também
     cv2.setWindowProperty(nome_janela, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
     while True:
         try:
             jpg_bytes = videostream.read()
+            
             if jpg_bytes is None:
-                time.sleep(0.01); continue
+                # Se a câmera estiver offline, mostra tela preta ou espera
+                time.sleep(0.1)
+                continue
                 
             frame = cv2.imdecode(np.frombuffer(jpg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None: continue
 
-            # 3. ESTICA A IMAGEM PARA O TAMANHO DA TELA
-            # Isso garante que não sobrem bordas pretas
+            # Força tamanho da tela
             frame = cv2.resize(frame, (LARGURA_TELA, ALTURA_TELA))
 
             agora = time.time()
             em_cooldown = (agora - ultimo_sucesso) < DELAY_RECONHECIMENTO
             
             if not em_cooldown:
+                # OTIMIZAÇÃO IA
                 if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
                     ultimo_check_ia = agora
-                    
-                    # Reduz drasticamente para a IA (senão fica lento)
-                    small = cv2.resize(frame, (0,0), fx=0.25, fy=0.25) # Reduzido ainda mais (1/4)
+                    small = cv2.resize(frame, (0,0), fx=0.25, fy=0.25)
                     rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
                     locs = face_recognition.face_locations(rgb)
                     
@@ -144,7 +163,6 @@ def loop_reconhecimento():
                                 print(f"== ACESSO LIBERADO: {name} ==")
                                 ultimo_sucesso = agora
                                 nome_ultimo_detectado = name
-                                # Desenha na imagem grande
                                 cv2.rectangle(frame, (0,0), (LARGURA_TELA, 80), (0,255,0), -1)
                                 cv2.putText(frame, f"BEM-VINDO {name}", (40, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255,255,255), 3)
             else:
@@ -211,5 +229,3 @@ if __name__ == '__main__':
     t.daemon = True
     t.start()
     app.run(host='0.0.0.0', port=5000, debug=False)
-    
-    #teste
