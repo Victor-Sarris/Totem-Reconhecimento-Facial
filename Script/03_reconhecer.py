@@ -7,18 +7,25 @@ import time
 import requests
 from flask import Flask, Response, jsonify, request
 
+# --- CONFIGURAÇÕES ---
 ARQUIVO_DADOS = "encodings.pickle"
 URL_CAMERA = "http://192.168.18.159/stream"
-DELAY_RECONHECIMENTO = 10  
-INTERVALO_SCAN_IA = 1.0   
+DELAY_RECONHECIMENTO = 10
+INTERVALO_SCAN_IA = 1.0
+
+# CONFIGURAÇÃO DA TELA (AJUSTE SE SUA TELA FOR DIFERENTE)
+LARGURA_TELA = 1024
+ALTURA_TELA = 600
 
 app = Flask(__name__)
 
+# --- VARIÁVEIS GLOBAIS ---
 frame_atual = None
 lista_encodings = []
 lista_nomes = []
 lock = threading.Lock()
 
+# --- CLASSE DE CAPTURA DE VÍDEO ---
 class VideoStream:
     def __init__(self, src):
         self.stream = requests.get(src, stream=True, timeout=10)
@@ -45,7 +52,6 @@ class VideoStream:
             if a != -1 and b != -1:
                 jpg = self.bytes_buffer[a:b+2]
                 self.bytes_buffer = self.bytes_buffer[b+2:]
-                
                 with self.lock_video:
                     self.ultimo_frame_jpg = jpg
 
@@ -56,6 +62,7 @@ class VideoStream:
     def stop(self):
         self.rodando = False
 
+# --- FUNÇÕES AUXILIARES ---
 def carregar_dados():
     global lista_encodings, lista_nomes
     try:
@@ -76,6 +83,7 @@ def salvar_dados_pickle():
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
 
+# --- LOOP PRINCIPAL (TELA CHEIA FORÇADA) ---
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
@@ -84,23 +92,31 @@ def loop_reconhecimento():
     nome_ultimo_detectado = ""
     
     print(f"[VIDEO] Iniciando buffer de vídeo: {URL_CAMERA}")
-    
     videostream = VideoStream(URL_CAMERA).start()
-    time.sleep(2.0) # Espera encher o buffer
+    time.sleep(2.0) 
     
-    cv2.namedWindow("Totem Facial", cv2.WINDOW_NORMAL)
+    nome_janela = "Totem Facial"
+    cv2.namedWindow(nome_janela, cv2.WINDOW_NORMAL)
+    
+    # 1. Força a janela a ir para o canto e ter o tamanho da tela
+    cv2.moveWindow(nome_janela, 0, 0)
+    cv2.resizeWindow(nome_janela, LARGURA_TELA, ALTURA_TELA)
+    
+    # 2. Tenta ativar o modo fullscreen nativo também
+    cv2.setWindowProperty(nome_janela, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
     while True:
         try:
             jpg_bytes = videostream.read()
-            
             if jpg_bytes is None:
-                time.sleep(0.01)
-                continue
+                time.sleep(0.01); continue
                 
             frame = cv2.imdecode(np.frombuffer(jpg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
-            
             if frame is None: continue
+
+            # 3. ESTICA A IMAGEM PARA O TAMANHO DA TELA
+            # Isso garante que não sobrem bordas pretas
+            frame = cv2.resize(frame, (LARGURA_TELA, ALTURA_TELA))
 
             agora = time.time()
             em_cooldown = (agora - ultimo_sucesso) < DELAY_RECONHECIMENTO
@@ -109,14 +125,13 @@ def loop_reconhecimento():
                 if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
                     ultimo_check_ia = agora
                     
-                    small = cv2.resize(frame, (0,0), fx=0.5, fy=0.5)
+                    # Reduz drasticamente para a IA (senão fica lento)
+                    small = cv2.resize(frame, (0,0), fx=0.25, fy=0.25) # Reduzido ainda mais (1/4)
                     rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-                    
                     locs = face_recognition.face_locations(rgb)
                     
                     if locs and len(lista_encodings) > 0:
                         encs = face_recognition.face_encodings(rgb, locs)
-                        
                         for encoding in encs:
                             with lock:
                                 matches = face_recognition.compare_faces(lista_encodings, encoding, tolerance=0.5)
@@ -129,30 +144,28 @@ def loop_reconhecimento():
                                 print(f"== ACESSO LIBERADO: {name} ==")
                                 ultimo_sucesso = agora
                                 nome_ultimo_detectado = name
-                                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (0,255,0), -1)
-                                cv2.putText(frame, f"BEM-VINDO {name}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-                else:
-                    pass
+                                # Desenha na imagem grande
+                                cv2.rectangle(frame, (0,0), (LARGURA_TELA, 80), (0,255,0), -1)
+                                cv2.putText(frame, f"BEM-VINDO {name}", (40, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255,255,255), 3)
             else:
                 tempo = int(DELAY_RECONHECIMENTO - (agora - ultimo_sucesso))
-                cv2.rectangle(frame, (0,0), (frame.shape[1], 60), (50,50,50), -1)
-                cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
-                cv2.putText(frame, f"Proximo: {tempo}s", (20, frame.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
+                cv2.rectangle(frame, (0,0), (LARGURA_TELA, 80), (50,50,50), -1)
+                cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (40, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,255,0), 3)
+                cv2.putText(frame, f"Proximo: {tempo}s", (40, ALTURA_TELA-40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,255), 2)
 
-            cv2.imshow("Totem Facial", frame)
+            cv2.imshow(nome_janela, frame)
+            with lock: frame_atual = frame.copy()
             
-            with lock:
-                frame_atual = frame.copy()
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q') or key == 27: break
                 
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             
     videostream.stop()
     cv2.destroyAllWindows()
 
+# --- API FLASK ---
 @app.route('/api/cadastrar_direto', methods=['POST'])
 def cadastrar_direto():
     global lista_encodings, lista_nomes
@@ -198,3 +211,5 @@ if __name__ == '__main__':
     t.daemon = True
     t.start()
     app.run(host='0.0.0.0', port=5000, debug=False)
+    
+    #teste
