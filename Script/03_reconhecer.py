@@ -111,31 +111,31 @@ def loop_reconhecimento():
     ultimo_check_ia = 0
     nome_ultimo_detectado = ""
     
-    print(f"[VIDEO] Iniciando sistema de vídeo: {URL_CAMERA}")
+    # Variável para controlar o "golpe" de tela cheia
+    primeiro_frame = True
+    
+    print(f"[VIDEO] Iniciando buffer de vídeo: {URL_CAMERA}")
     videostream = VideoStream(URL_CAMERA).start()
     
-    # Aguarda um pouco para pegar o primeiro frame
+    # Aguarda buffer encher
     time.sleep(2.0)
     
     nome_janela = "Totem Facial"
+    # Cria a janela como "NORMAL" para permitir redimensionar
     cv2.namedWindow(nome_janela, cv2.WINDOW_NORMAL)
-    cv2.moveWindow(nome_janela, 0, 0)
-    cv2.resizeWindow(nome_janela, LARGURA_TELA, ALTURA_TELA)
-    cv2.setWindowProperty(nome_janela, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
     while True:
         try:
             jpg_bytes = videostream.read()
             
             if jpg_bytes is None:
-                # Se a câmera estiver offline, mostra tela preta ou espera
                 time.sleep(0.1)
                 continue
                 
             frame = cv2.imdecode(np.frombuffer(jpg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None: continue
 
-            # Força tamanho da tela
+            # 1. OBRIGA A IMAGEM A TER O TAMANHO DA TELA (Estica sem dó)
             frame = cv2.resize(frame, (LARGURA_TELA, ALTURA_TELA))
 
             agora = time.time()
@@ -171,13 +171,22 @@ def loop_reconhecimento():
                 cv2.putText(frame, f"LIBERADO: {nome_ultimo_detectado}", (40, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,255,0), 3)
                 cv2.putText(frame, f"Proximo: {tempo}s", (40, ALTURA_TELA-40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,255), 2)
 
+            # 2. MOSTRA A IMAGEM
             cv2.imshow(nome_janela, frame)
+
+            # 3. O PULO DO GATO: Aplica Tela Cheia DEPOIS de mostrar a imagem
+            if primeiro_frame:
+                cv2.setWindowProperty(nome_janela, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                cv2.moveWindow(nome_janela, 0, 0)
+                primeiro_frame = False
+            
             with lock: frame_atual = frame.copy()
             
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q') or key == 27: break
                 
-        except Exception:
+        except Exception as e:
+            # print(f"Erro loop: {e}")
             time.sleep(1)
             
     videostream.stop()
