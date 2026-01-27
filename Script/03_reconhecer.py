@@ -8,7 +8,7 @@ import requests
 from flask import Flask, Response, jsonify, request
 
 ARQUIVO_DADOS = "encodings.pickle"
-URL_CAMERA = "http://192.168.18.159/stream" # IP da sua Câmera
+URL_CAMERA = "http://192.168.18.159/stream" 
 DELAY_RECONHECIMENTO = 10
 INTERVALO_SCAN_IA = 1.0
 
