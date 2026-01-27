@@ -7,26 +7,21 @@ import time
 import requests
 from flask import Flask, Response, jsonify, request
 
-# --- CONFIGURAÇÕES DE REDE ---
 ARQUIVO_DADOS = "encodings.pickle"
 URL_CAMERA = "http://192.168.18.159/stream" # IP da sua Câmera
 DELAY_RECONHECIMENTO = 10
 INTERVALO_SCAN_IA = 1.0
 
-# --- OTIMIZAÇÃO DE TELA (HARDCODED FULL HD) ---
-# Definimos fixo para poupar CPU de detectar
 LARGURA_TELA = 1920
 ALTURA_TELA = 1080
 
 app = Flask(__name__)
 
-# --- VARIÁVEIS GLOBAIS ---
 frame_atual = None
 lista_encodings = []
 lista_nomes = []
 lock = threading.Lock()
 
-# --- CLASSE DE VÍDEO (BUFFERIZADO + RECONNECT) ---
 class VideoStream:
     def __init__(self, src):
         self.src = src
@@ -73,7 +68,6 @@ class VideoStream:
     def stop(self):
         self.rodando = False
 
-# --- FUNÇÕES DE DADOS ---
 def carregar_dados():
     global lista_encodings, lista_nomes
     try:
@@ -93,7 +87,6 @@ def salvar_dados_pickle():
         with open(ARQUIVO_DADOS, "wb") as f:
             f.write(pickle.dumps(data))
 
-# --- LOOP PRINCIPAL OTIMIZADO ---
 def loop_reconhecimento():
     global frame_atual, lista_encodings, lista_nomes
     
@@ -118,20 +111,15 @@ def loop_reconhecimento():
             frame = cv2.imdecode(np.frombuffer(jpg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None: continue
 
-            # 1. ESTICA PARA FULL HD (1920x1080)
             frame = cv2.resize(frame, (LARGURA_TELA, ALTURA_TELA))
 
             agora = time.time()
             em_cooldown = (agora - ultimo_sucesso) < DELAY_RECONHECIMENTO
             
             if not em_cooldown:
-                # OTIMIZAÇÃO MASTER:
-                # Só roda IA a cada 1 segundo (INTERVALO_SCAN_IA)
                 if (agora - ultimo_check_ia) > INTERVALO_SCAN_IA:
                     ultimo_check_ia = agora
                     
-                    # Reduz a imagem 1920x1080 em 80% (fator 0.2) para a IA ler rápido
-                    # Isso cria uma imagem interna de 384x216 pixels para o cérebro processar
                     small = cv2.resize(frame, (0,0), fx=0.2, fy=0.2)
                     rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
                     locs = face_recognition.face_locations(rgb)
